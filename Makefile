@@ -23,6 +23,8 @@ clean:
 fclean: clean
 	rm -f $(TARGET)
 
-rebuild: fclean all
+re: fclean all
+
+
 
 .PHONY: all clean fclean rebuild
