@@ -1,33 +1,10 @@
-#include "ConfigParser.hpp"
-#include "EventLoop.hpp"
-#include "Logger.hpp"
-#include "Response.hpp"
+#include "Client.hpp"
 
 // basic curl server
-#include <iostream>
-#include <cstring>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <arpa/inet.h>
-#include <poll.h>
 
-ssize_t recieve_message(int client_fd) {
+using webserv::Client;
+using webserv::ClientState;
 
-	char buffer[4096];
-	std::memset(buffer, 0, sizeof(buffer));
-	ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer) -1, 0);
-
-	if (bytes_read == -1)
-	{
-		std::cerr << "recv() failed\n";
-		return -1;
-	}
-
-	std::cout << "Received request:\n";
-	std::cout << buffer << std::endl;
-	return bytes_read;
-}
 
 void send_response(int client_fd, std::string response) {
 	send(client_fd, response.c_str(), response.size(), 0);
@@ -43,6 +20,9 @@ int main()
 // };
 
 	std::vector<pollfd> fds;
+	std::map<int, Client> clients;
+
+
 	int server_fd = socket(AF_INET, SOCK_STREAM, 0); // afinet = ipv4 domain. stream = TCP as opposote to something like udp
 
 	fds.push_back({server_fd, POLLIN, 0});
@@ -105,27 +85,38 @@ int main()
 					}
 					std::cout << "Client connected: fd " << client_fd << std::endl;
 					fds.push_back({client_fd, POLLIN, 0});
+					clients.emplace(client_fd, Client(client_fd));
 				}
 				else
 				{
 					// RECV REQUEST
-					ssize_t bytes_read = recieve_message(fds[i].fd);
+					int fd = fds[i].fd;
+					Client& client = clients.at(fd);
+					ssize_t bytes_read = recieve_message(client);
 					if (bytes_read <= 0)
 					{
+						// CLEANUP CLIENT
 						if (bytes_read == 0)
 							std::cout << "Client disconnected" << std::endl;
 						else
 							perror("bad recv");
 						close(fds[i].fd);
+						clients.erase(fds[i].fd);
+						fds.erase(fds.begin() + i);
+						i--;
+						continue;
+					}
+					if (request_complete(client.readBuffer))
+					{
+						// SEND RESPONSE
+						client.state= ClientState::Writing;
+						std::string response = build_response_HARDCODED(fds[i].fd);
+						send_response(fds[i].fd, response);
+						// CLEANUP CLIENT turn into function as above
+						close(fds[i].fd);
 						fds.erase(fds.begin() + i);
 						i--;
 					}
-					// SEND RESPONSE
-					std::string response = build_response_HARDCODED(fds[i].fd);
-					send_response(fds[i].fd, response);
-					close(fds[i].fd);
-					fds.erase(fds.begin() + i);
-					i--;
 				}
 			}
 		}
