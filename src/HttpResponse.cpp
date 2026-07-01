@@ -30,7 +30,26 @@ std::string Response::toString() const {
         ss << file.rdbuf();
         res.body = ss.str();
         res.statusCode = 200;
+        res.headers["Content-Type"] = getMimeType(filePath);
         res.statusText = "OK";
         res.headers["Content-Length"] = std::to_string(res.body.size());
         return res;
+};
+
+std::string Response::getMimeType(const std::string& filePath) {
+    std::string ext = filePath.substr(filePath.rfind('.'));
+
+    if (ext == ".html")
+        return "text/html";
+    else if (ext == ".css")
+        return "text/css";
+    else if (ext == ".js")
+        return ("application/javascript");
+    else if (ext == ".png")
+        return "image/png";
+    else if (ext == ".jpg")
+        return "image/jpeg";
+    else if (ext == ".txt")
+        return ("text/plain");
+    return "application/octet-stream";
 };
