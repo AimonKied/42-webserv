@@ -1,6 +1,7 @@
 #include "ConfigParser.hpp"
 #include "EventLoop.hpp"
 #include "Logger.hpp"
+#include "Response.hpp"
 
 // basic curl server
 #include <iostream>
@@ -28,19 +29,9 @@ ssize_t recieve_message(int client_fd) {
 	return bytes_read;
 }
 
-void build_and_send(int client_fd) {
-	
-	std::string body = "Hello there budster!\n";
-	std::string response =
-		"HTTP/1.1 200 OK\r\n"
-		"Content-Type: text/plain\r\n"
-		"Content-Length: " + std::to_string(body.size()) + "\r\n"
-		"\r\n" +
-		body;
-
+void send_response(int client_fd, std::string response) {
 	send(client_fd, response.c_str(), response.size(), 0);
 }
-
 
 int main()
 {
@@ -130,8 +121,8 @@ int main()
 						i--;
 					}
 					// SEND RESPONSE
-					build_and_send(fds[i].fd);
-
+					std::string response = build_response_HARDCODED(fds[i].fd);
+					send_response(fds[i].fd, response);
 					close(fds[i].fd);
 					fds.erase(fds.begin() + i);
 					i--;

@@ -17,4 +17,7 @@ public:
     std::string serialize() const;
 };
 
+
 } // namespace webserv
+
+std::string build_response_HARDCODED(int client_fd);

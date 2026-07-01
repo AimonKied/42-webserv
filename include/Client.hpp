@@ -14,15 +14,12 @@ enum class ClientState {
 
 class Client {
 public:
-    Client(int socketFd);
-    ~Client();
+    explicit Client(int fd);
 
-    int socketFd;
+    int fd;
     std::string readBuffer;
     std::string writeBuffer;
     ClientState state;
-    Request request;
-    Response response;
 };
 
 } // namespace webserv
