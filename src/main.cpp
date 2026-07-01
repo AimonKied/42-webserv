@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <poll.h>
 
 ssize_t recieve_message(int client_fd) {
 
@@ -43,7 +44,17 @@ void build_and_send(int client_fd) {
 
 int main()
 {
+	//FOR REFERENCE:
+// struct pollfd {
+//     int fd;         // which fd to watch
+//     short events;   // what you care about
+//     short revents;  // what actually happened
+// };
+
+	std::vector<pollfd> fds;
 	int server_fd = socket(AF_INET, SOCK_STREAM, 0); // afinet = ipv4 domain. stream = TCP as opposote to something like udp
+
+	fds.push_back({server_fd, POLLIN, 0});
 
 	if (server_fd == -1)
 	{
@@ -62,8 +73,6 @@ int main()
 	}
 
 	sockaddr_in address = {}; // struct for ipv4 address
-	// std::memset(&address, 0, sizeof(address));
-
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY; // accept connections on any network interface
 	address.sin_port = htons(8080); // host to network short
@@ -82,27 +91,53 @@ int main()
 
 	while (true)
 	{
-		std::cout << "Waiting for connection" << std::endl;
-		int client_fd = accept(server_fd, nullptr, nullptr);
-		if (client_fd == -1)
+		int ready = poll(fds.data(), fds.size(), -1); // params are arrayofpollfd, number of fds to watch, timeout (-1 = wait forever until sum happens)
+
+		if (ready == -1)
 		{
-			std::cerr << "accept() failed\n";
-			close(server_fd);
+			perror("bad poll");
 			return 1;
 		}
-		std::cout << "Client connected: fd " << client_fd << std::endl;
-
-		// RECV REQUEST
-		ssize_t bytes_read = recieve_message(client_fd);
-		if (bytes_read < 0)
+		for (size_t i = 0; i < fds.size(); i++)
 		{
-			close(client_fd);
-			close(server_fd);
-			exit(1);
+			if (fds[i].revents & POLLIN) // events = what i asked to watch for, revents is what actually happened
+			{
+				if (fds[i].fd == server_fd)
+				{
+					std::cout << "New connection is pending" << std::endl;
+					int client_fd = accept(server_fd, nullptr, nullptr);
+					if (client_fd == -1)
+					{
+						std::cerr << "accept() failed\n";
+						close(server_fd);
+						return 1;
+					}
+					std::cout << "Client connected: fd " << client_fd << std::endl;
+					fds.push_back({client_fd, POLLIN, 0});
+				}
+				else
+				{
+					// RECV REQUEST
+					ssize_t bytes_read = recieve_message(fds[i].fd);
+					if (bytes_read <= 0)
+					{
+						if (bytes_read == 0)
+							std::cout << "Client disconnected" << std::endl;
+						else
+							perror("bad recv");
+						close(fds[i].fd);
+						fds.erase(fds.begin() + i);
+						i--;
+					}
+					// SEND RESPONSE
+					build_and_send(fds[i].fd);
+
+					close(fds[i].fd);
+					fds.erase(fds.begin() + i);
+					i--;
+				}
+			}
 		}
-		// SEND RESPONSE
-		build_and_send(client_fd);
-		close(client_fd);
 	}
 	close(server_fd);
 	return 0;
