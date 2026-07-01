@@ -1,7 +1,5 @@
 #pragma once
 
-#include "Request.hpp"
-#include "Response.hpp"
 #include <string>
 
 namespace webserv {
@@ -23,3 +21,6 @@ public:
 };
 
 } // namespace webserv
+
+
+std::string build_response_HARDCODED(int client_fd);
