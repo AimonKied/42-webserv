@@ -16,4 +16,7 @@ class Response {
         static Response serveFile(const std::string& filePath);
         static std::string getMimeType(const std::string& filePath);
         static Response build(const Request& req, const std::string& rootDir);
+        static Response buildGet(const Request& req, const std::string& rootDir);
+        static Response buildPost(const Request& req, const std::string& rootDir);
+        static Response buildDelete(const Request& req, const std::string& rootDir);
 };
