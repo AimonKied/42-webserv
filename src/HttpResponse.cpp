@@ -136,5 +136,56 @@ Response Response::buildPost(const Request& req, const std::string& rootDir) {
 }
 
 Response Response::buildDelete(const Request& req, const std::string& rootDir) {
-    return Response();
+        if (req.path.find("..") != std::string::npos) {
+            Response res;
+            res.statusCode = 403;
+            res.statusText = "Forbidden";
+            res.body = "403 Forbidden";
+            res.headers["Content-Length"] = std::to_string(res.body.size());
+            return res;
+        }
+        if (!req.path.empty() && req.path.back() == '/') {
+            Response res;
+            res.statusCode = 400;
+            res.statusText = "Bad Request";
+            res.body = "400 Bad Request";
+            res.headers["Content-Length"] = std::to_string(res.body.size());
+            return res;
+        }
+        std::string fullPath = rootDir;
+        if (!fullPath.empty() && fullPath.back() == '/')
+            fullPath.pop_back();
+        fullPath += req.path;
+        bool existed = std::filesystem::exists(fullPath);
+        if (!existed) {
+            Response res;
+            res.statusCode = 404;
+            res.statusText = "Not found";
+            res.body = "404 not found";
+            res.headers["Content-Length"] = std::to_string(res.body.size());
+            return res;
+        }
+        std::error_code ec;
+        if (std::filesystem::is_directory(fullPath, ec)) {
+            Response res;
+            res.statusCode = 403;
+            res.statusText = "Forbidden";
+            res.body = "403 Forbidden";
+            res.headers["Content-Length"] = std::to_string(res.body.size());
+            return res;
+        }
+        std::filesystem::remove(fullPath, ec);
+        if (ec) {
+            Response res;
+            res.statusCode = 500;
+            res.statusText = "Internal Server Error";
+            res.body = "500 Internal Server Error";
+            res.headers["Content-Length"] = std::to_string(res.body.size());
+            return res;
+        }
+        Response res;
+        res.statusCode = 204;
+        res.statusText = "No Content";
+        res.headers["Content-Length"] = std::to_string(res.body.size());
+        return res;
 }
