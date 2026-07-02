@@ -91,3 +91,10 @@ Response Response::buildGet(const Request& req, const std::string& rootDir) {
         fullPath += "/index.html";
     return serveFile(fullPath);
 }
+
+Response Response::buildPost(const Request&, const std::string&) {
+    return Response();
+}
+Response Response::buildDelete(const Request&, const std::string&) {
+    return Response();
+}
