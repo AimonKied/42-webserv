@@ -15,25 +15,25 @@ std::string Response::toString() const {
     return result;
 };
 
-    Response Response::serveFile(const std::string& filePath) {
-        Response res;
-        std::ifstream file(filePath);
+Response Response::serveFile(const std::string& filePath) {
+    Response res;
+    std::ifstream file(filePath);
 
-        if (!file.is_open()) {
-            res.statusCode = 404;
-            res.statusText = "Not Found";
-            res.body = "404 Not Found";
-            res.headers["Content-Length"] = std::to_string(res.body.size());
-            return res;
-        }
-        std::stringstream ss;
-        ss << file.rdbuf();
-        res.body = ss.str();
-        res.statusCode = 200;
-        res.headers["Content-Type"] = getMimeType(filePath);
-        res.statusText = "OK";
+    if (!file.is_open()) {
+        res.statusCode = 404;
+        res.statusText = "Not Found";
+        res.body = "404 Not Found";
         res.headers["Content-Length"] = std::to_string(res.body.size());
         return res;
+    }
+    std::stringstream ss;
+    ss << file.rdbuf();
+    res.body = ss.str();
+    res.statusCode = 200;
+    res.headers["Content-Type"] = getMimeType(filePath);
+    res.statusText = "OK";
+    res.headers["Content-Length"] = std::to_string(res.body.size());
+    return res;
 };
 
 std::string Response::getMimeType(const std::string& filePath) {
@@ -53,3 +53,21 @@ std::string Response::getMimeType(const std::string& filePath) {
         return ("text/plain");
     return "application/octet-stream";
 };
+
+Response Response::build(const Request& req, const std::string& rootDir) {
+    switch(req.method) {
+        case Method::GET:
+            return buildGet(req, rootDir);
+        case Method::POST:
+            return buildPost(req,rootDir);
+        case Method::DELETE:
+            return buildDelete(req, rootDir);
+        default:
+            Response res;
+            res.statusCode = 405;
+            res.statusText = "Method Not Allowed";
+            res.body = "405 Method Not Allowed";
+            res.headers["Content-Length"] = std::to_string(res.body.size());
+            return res;
+    }
+}
