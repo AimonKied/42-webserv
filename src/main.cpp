@@ -5,11 +5,6 @@
 using webserv::Client;
 using webserv::ClientState;
 
-
-void send_response(int client_fd, std::string response) {
-	send(client_fd, response.c_str(), response.size(), 0);
-}
-
 int main()
 {
 	//FOR REFERENCE:
@@ -41,10 +36,11 @@ int main()
 		for (size_t i = 0; i < fds.size(); i++)
 		{
 			int fd = fds[i].fd;
+			short revents = fds[i].revents;
 
-			if (fds[i].revents & POLLIN) // events = what i asked to watch for, revents is what actually happened
+			if (revents & POLLIN) // events = what i asked to watch for, revents is what actually happened
 			{
-				if (fds[i].fd == server_fd)
+				if (fd == server_fd)
 				{
 					if (handle_new_connection(server_fd, fds, clients) < 0)
 						return(perror("bad connection handle"), 1);
@@ -52,40 +48,26 @@ int main()
 				else
 				{
 					Client& client = clients.at(fd);
-					if (client.state != ClientState::Reading)
-						continue;
-					// RECV REQUEST
-					ssize_t bytes_read = recieve_message(client);
-					if (bytes_read <= 0)
+					if (client.state == ClientState::Reading
+						&& handle_read_event(client, fds[i]) < 0)
 					{
-						if (bytes_read == 0)
-							std::cout << "Client disconnected" << std::endl;
-						else
-							perror("bad recv");
 						cleanup_client(fds, clients, i);
 						continue;
 					}
-					if (request_complete(client.readBuffer))
+				}
+			}
+			if (revents & POLLOUT)
+			{
+				if (fd == server_fd)
+					continue;
+				Client& client = clients.at(fd);
+				if (client.state == ClientState::Writing)
+				{
+					int result = handle_write_event(client);
+					if (result < 0 || result > 0)
 					{
-						// SEND RESPONSE
-						client.state= ClientState::Writing;
-						std::string response = build_response_HARDCODED(fds[i].fd);
-						send_response(fds[i].fd, response);
 						cleanup_client(fds, clients, i);
-					}
-					else
-					{
-						std::cout << "Incomplete request. Continuing..." << std::endl;
-						for (char c : client.readBuffer)
-						{
-							if (c == '\r')
-								std::cout << "\\r";
-							else if (c == '\n')
-								std::cout << "\\n";
-							else
-								std::cout << c;
-						}
-						std::cout << std::endl;
+						continue;
 					}
 				}
 			}
