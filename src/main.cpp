@@ -38,6 +38,17 @@ void runPostTest(const std::string& label, const std::string& path, const std::s
 	std::cout << "-----------------------------\n" << std::endl;
 }
 
+void runDeleteTest(const std::string& label, const std::string& path) {
+	Request req;
+	req.method = Method::DELETE;
+	req.path = path;
+
+	Response res = Response::build(req, "./www");
+	std::cout << "=== " << label << " (path: " << path << ") ===\n";
+	std::cout << res.toString() << std::endl;
+	std::cout << "-----------------------------\n" << std::endl;
+}
+
 int main() {
 	// runGetTest("existing file", "/index.html");
 	// runGetTest("nonexistent file", "/doesnotexist.html");
@@ -46,6 +57,8 @@ int main() {
 	// runGetTest("nested existing file", "/");
 
 	runPostTest("create new file", "/upload_test.txt", "hello world");
+
+	runDeleteTest("delete existing file", "/upload_test.txt");
 }
 
 
