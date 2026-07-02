@@ -23,39 +23,38 @@ int main()
 	std::map<int, Client> clients;
 
 	int server_fd = create_listening_socket(fds);
+	if (server_fd < 0)
+	{
+		perror("bad listening socket");
+		return 1;
+	}
 
 	while (true)
 	{
 		int ready = poll(fds.data(), fds.size(), -1); // params are arrayofpollfd, number of fds to watch, timeout (-1 = wait forever until sum happens)
-
 		if (ready == -1)
 		{
 			perror("bad poll");
 			return 1;
 		}
+
 		for (size_t i = 0; i < fds.size(); i++)
 		{
+			int fd = fds[i].fd;
+
 			if (fds[i].revents & POLLIN) // events = what i asked to watch for, revents is what actually happened
 			{
 				if (fds[i].fd == server_fd)
 				{
-					std::cout << "New connection is pending" << std::endl;
-					int client_fd = accept(server_fd, nullptr, nullptr);
-					if (client_fd == -1)
-					{
-						std::cerr << "accept() failed\n";
-						close(server_fd);
-						return 1;
-					}
-					std::cout << "Client connected: fd " << client_fd << std::endl;
-					fds.push_back({client_fd, POLLIN, 0});
-					clients.emplace(client_fd, Client(client_fd));
+					if (handle_new_connection(server_fd, fds, clients) < 0)
+						return(perror("bad connection handle"), 1);
 				}
 				else
 				{
-					// RECV REQUEST
-					int fd = fds[i].fd;
 					Client& client = clients.at(fd);
+					if (client.state != ClientState::Reading)
+						continue;
+					// RECV REQUEST
 					ssize_t bytes_read = recieve_message(client);
 					if (bytes_read <= 0)
 					{
