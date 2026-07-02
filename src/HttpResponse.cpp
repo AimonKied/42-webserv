@@ -92,9 +92,49 @@ Response Response::buildGet(const Request& req, const std::string& rootDir) {
     return serveFile(fullPath);
 }
 
-Response Response::buildPost(const Request&, const std::string&) {
-    return Response();
+Response Response::buildPost(const Request& req, const std::string& rootDir) {
+    if (req.path.find("..") != std::string::npos) {
+        Response res;
+        res.statusCode = 403;
+        res.statusText = "Forbidden";
+        res.body = "403 Forbidden";
+        res.headers["Content-Length"] = std::to_string(res.body.size());
+        return res;
+    }
+    if (!req.path.empty() && req.path.back() == '/') {
+        Response res;
+        res.statusCode = 400;
+        res.statusText = "Bad Request";
+        res.body = "400 Bad Request";
+        res.headers["Content-Length"] = std::to_string(res.body.size());
+        return res;
+    }
+    std::string fullPath = rootDir;
+    if (!fullPath.empty() && fullPath.back() == '/')
+        fullPath.pop_back();
+    fullPath += req.path;
+
+    bool existed = std::filesystem::exists(fullPath);
+    std::ofstream outFile(fullPath, std::ios::binary);
+    if (!outFile.is_open()) {
+        Response res;
+        res.statusCode = 500;
+        res.statusText = "Internal Server Error";
+        res.body = "500 Internal Server Error";
+        res.headers["Content-Length"] = std::to_string(res.body.size());
+        return res;
+    }
+
+    outFile << req.body;
+    outFile.close();
+    Response res;
+    res.statusCode = existed ? 200 : 201;
+    res.statusText = existed ? "OK" : "Created";
+    res.body = "";
+    res.headers["Content-Length"] = std::to_string(res.body.size());
+    return res;
 }
-Response Response::buildDelete(const Request&, const std::string&) {
+
+Response Response::buildDelete(const Request& req, const std::string& rootDir) {
     return Response();
 }
