@@ -15,13 +15,37 @@
 #include "HttpResponse.hpp"
 #include <iostream>
 
-int main() {
+void runGetTest(const std::string& label, const std::string& path) {
 	Request req;
 	req.method = Method::GET;
-	req.path = "/index.html";
+	req.path = path;
 
 	Response res = Response::build(req, "./www");
+	std::cout << "=== " << label << " (path: " << path << ") ===\n";
 	std::cout << res.toString() << std::endl;
+	std::cout << "-----------------------------\n" << std::endl;
+}
+
+void runPostTest(const std::string& label, const std::string& path, const std::string& body) {
+	Request req;
+	req.method = Method::POST;
+	req.path = path;
+	req.body = body;
+
+	Response res = Response::build(req, "./www");
+	std::cout << "=== " << label << " (path: " << path << ") ===\n";
+	std::cout << res.toString() << std::endl;
+	std::cout << "-----------------------------\n" << std::endl;
+}
+
+int main() {
+	// runGetTest("existing file", "/index.html");
+	// runGetTest("nonexistent file", "/doesnotexist.html");
+	// runGetTest("directory (should serve index.html)", "/");
+	// runGetTest("path traversal blocked", "/../main.cpp");
+	// runGetTest("nested existing file", "/");
+
+	runPostTest("create new file", "/upload_test.txt", "hello world");
 }
 
 
