@@ -18,11 +18,25 @@ std::string getStatusText(int code) {
     }
 }
 
-Response makeErrorResponse(int code) {
+Response makeErrorResponse(int code, const std::string& rootDir) {
     Response res;
     res.statusCode = code;
     res.statusText = getStatusText(code);
-    res.body = std::to_string(code) + " " + res.statusText;
+
+    std::string errorPath = rootDir;
+    if (!errorPath.empty() && errorPath.back() == '/')
+        errorPath.pop_back();
+    errorPath += "/error/" + std::to_string(code) + ".html";
+
+    std::ifstream file(errorPath);
+    if (file.is_open()) {
+        std::stringstream ss;
+        ss << file.rdbuf();
+        res.body = ss.str();
+        res.headers["Content-Type"] = "text/html";
+    } else {
+        res.body = std::to_string(code) + " " + res.statusText;
+    }
     res.headers["Content-Length"] = std::to_string(res.body.size());
     return res;
 }
