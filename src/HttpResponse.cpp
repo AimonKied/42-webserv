@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <string>
 
+Response makeErrorResponse(int code);
+
 std::string Response::toString() const {
     std::string result;
 
@@ -19,13 +21,8 @@ Response Response::serveFile(const std::string& filePath) {
     Response res;
     std::ifstream file(filePath);
 
-    if (!file.is_open()) {
-        res.statusCode = 404;
-        res.statusText = "Not Found";
-        res.body = "404 Not Found";
-        res.headers["Content-Length"] = std::to_string(res.body.size());
-        return res;
-    }
+    if (!file.is_open())
+        return makeErrorResponse(404);
     std::stringstream ss;
     ss << file.rdbuf();
     res.body = ss.str();
@@ -63,24 +60,13 @@ Response Response::build(const Request& req, const std::string& rootDir) {
         case Method::DELETE:
             return buildDelete(req, rootDir);
         default:
-            Response res;
-            res.statusCode = 405;
-            res.statusText = "Method Not Allowed";
-            res.body = "405 Method Not Allowed";
-            res.headers["Content-Length"] = std::to_string(res.body.size());
-            return res;
+            return makeErrorResponse(405);
     }
 }
 
 Response Response::buildGet(const Request& req, const std::string& rootDir) {
-    if (req.path.find("..") != std::string::npos) {
-        Response res;
-        res.statusCode = 403;
-        res.statusText = "Forbidden";
-        res.body = "403 Forbidden";
-        res.headers["Content-Length"] = std::to_string(res.body.size());
-        return res;
-    }
+    if (req.path.find("..") != std::string::npos)
+        return makeErrorResponse(403);
     std::string fullPath = rootDir;
     if (!fullPath.empty() && fullPath.back() == '/')
         fullPath.pop_back();
@@ -93,22 +79,10 @@ Response Response::buildGet(const Request& req, const std::string& rootDir) {
 }
 
 Response Response::buildPost(const Request& req, const std::string& rootDir) {
-    if (req.path.find("..") != std::string::npos) {
-        Response res;
-        res.statusCode = 403;
-        res.statusText = "Forbidden";
-        res.body = "403 Forbidden";
-        res.headers["Content-Length"] = std::to_string(res.body.size());
-        return res;
-    }
-    if (!req.path.empty() && req.path.back() == '/') {
-        Response res;
-        res.statusCode = 400;
-        res.statusText = "Bad Request";
-        res.body = "400 Bad Request";
-        res.headers["Content-Length"] = std::to_string(res.body.size());
-        return res;
-    }
+    if (req.path.find("..") != std::string::npos)
+        return makeErrorResponse(403);
+    if (!req.path.empty() && req.path.back() == '/')
+        return makeErrorResponse(400);
     std::string fullPath = rootDir;
     if (!fullPath.empty() && fullPath.back() == '/')
         fullPath.pop_back();
@@ -116,14 +90,8 @@ Response Response::buildPost(const Request& req, const std::string& rootDir) {
 
     bool existed = std::filesystem::exists(fullPath);
     std::ofstream outFile(fullPath, std::ios::binary);
-    if (!outFile.is_open()) {
-        Response res;
-        res.statusCode = 500;
-        res.statusText = "Internal Server Error";
-        res.body = "500 Internal Server Error";
-        res.headers["Content-Length"] = std::to_string(res.body.size());
-        return res;
-    }
+    if (!outFile.is_open())
+        return makeErrorResponse(500);
 
     outFile << req.body;
     outFile.close();
@@ -136,53 +104,23 @@ Response Response::buildPost(const Request& req, const std::string& rootDir) {
 }
 
 Response Response::buildDelete(const Request& req, const std::string& rootDir) {
-        if (req.path.find("..") != std::string::npos) {
-            Response res;
-            res.statusCode = 403;
-            res.statusText = "Forbidden";
-            res.body = "403 Forbidden";
-            res.headers["Content-Length"] = std::to_string(res.body.size());
-            return res;
-        }
-        if (!req.path.empty() && req.path.back() == '/') {
-            Response res;
-            res.statusCode = 400;
-            res.statusText = "Bad Request";
-            res.body = "400 Bad Request";
-            res.headers["Content-Length"] = std::to_string(res.body.size());
-            return res;
-        }
+        if (req.path.find("..") != std::string::npos)
+            return makeErrorResponse(403);
+        if (!req.path.empty() && req.path.back() == '/')
+            return makeErrorResponse(400);
         std::string fullPath = rootDir;
         if (!fullPath.empty() && fullPath.back() == '/')
             fullPath.pop_back();
         fullPath += req.path;
         bool existed = std::filesystem::exists(fullPath);
-        if (!existed) {
-            Response res;
-            res.statusCode = 404;
-            res.statusText = "Not found";
-            res.body = "404 not found";
-            res.headers["Content-Length"] = std::to_string(res.body.size());
-            return res;
-        }
+        if (!existed)
+            return makeErrorResponse(404);
         std::error_code ec;
-        if (std::filesystem::is_directory(fullPath, ec)) {
-            Response res;
-            res.statusCode = 403;
-            res.statusText = "Forbidden";
-            res.body = "403 Forbidden";
-            res.headers["Content-Length"] = std::to_string(res.body.size());
-            return res;
-        }
+        if (std::filesystem::is_directory(fullPath, ec))
+            return makeErrorResponse(403);
         std::filesystem::remove(fullPath, ec);
-        if (ec) {
-            Response res;
-            res.statusCode = 500;
-            res.statusText = "Internal Server Error";
-            res.body = "500 Internal Server Error";
-            res.headers["Content-Length"] = std::to_string(res.body.size());
-            return res;
-        }
+        if (ec)
+            return makeErrorResponse(500);
         Response res;
         res.statusCode = 204;
         res.statusText = "No Content";
