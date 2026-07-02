@@ -18,7 +18,7 @@ std::string getStatusText(int code) {
     }
 }
 
-static Response makeError(int code) {
+Response makeErrorResponse(int code) {
     Response res;
     res.statusCode = code;
     res.statusText = getStatusText(code);
