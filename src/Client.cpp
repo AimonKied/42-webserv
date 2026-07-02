@@ -39,5 +39,5 @@ ssize_t recieve_message(Client& client)
 
 bool request_complete(std::string buffer)
 {
-	return buffer.find("\r\n\r\n") != std::string::npos;
+	return buffer.find("\r\n\r\n") != std::string::npos || buffer.find("\n\n") != std::string::npos;
 }

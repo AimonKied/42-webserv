@@ -117,6 +117,20 @@ int main()
 						fds.erase(fds.begin() + i);
 						i--;
 					}
+					else
+					{
+						std::cout << "Incomplete request. Continuing..." << std::endl;
+						for (char c : client.readBuffer)
+						{
+							if (c == '\r')
+								std::cout << "\\r";
+							else if (c == '\n')
+								std::cout << "\\n";
+							else
+								std::cout << c;
+						}
+						std::cout << std::endl;
+					}
 				}
 			}
 		}
