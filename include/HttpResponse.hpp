@@ -13,7 +13,7 @@ class Response {
         std::unordered_map<std::string, std::string> headers;
 
         std::string toString() const;
-        static Response serveFile(const std::string& filePath);
+        static Response serveFile(const std::string& filePath, const std::string& rootDir);
         static std::string getMimeType(const std::string& filePath);
         static Response build(const Request& req, const std::string& rootDir);
         static Response buildGet(const Request& req, const std::string& rootDir);
