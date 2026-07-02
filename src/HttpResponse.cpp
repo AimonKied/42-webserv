@@ -34,7 +34,10 @@ Response Response::serveFile(const std::string& filePath) {
 };
 
 std::string Response::getMimeType(const std::string& filePath) {
-    std::string ext = filePath.substr(filePath.rfind('.'));
+    size_t dotPos = filePath.rfind('.');
+    if (dotPos == std::string::npos)
+        return "application/octet-stream";
+    std::string ext = filePath.substr(dotPos);
 
     if (ext == ".html")
         return "text/html";
@@ -104,26 +107,26 @@ Response Response::buildPost(const Request& req, const std::string& rootDir) {
 }
 
 Response Response::buildDelete(const Request& req, const std::string& rootDir) {
-        if (req.path.find("..") != std::string::npos)
-            return makeErrorResponse(403);
-        if (!req.path.empty() && req.path.back() == '/')
-            return makeErrorResponse(400);
-        std::string fullPath = rootDir;
-        if (!fullPath.empty() && fullPath.back() == '/')
-            fullPath.pop_back();
-        fullPath += req.path;
-        bool existed = std::filesystem::exists(fullPath);
-        if (!existed)
-            return makeErrorResponse(404);
-        std::error_code ec;
-        if (std::filesystem::is_directory(fullPath, ec))
-            return makeErrorResponse(403);
-        std::filesystem::remove(fullPath, ec);
-        if (ec)
-            return makeErrorResponse(500);
-        Response res;
-        res.statusCode = 204;
-        res.statusText = "No Content";
-        res.headers["Content-Length"] = std::to_string(res.body.size());
-        return res;
+    if (req.path.find("..") != std::string::npos)
+        return makeErrorResponse(403);
+    if (!req.path.empty() && req.path.back() == '/')
+        return makeErrorResponse(400);
+    std::string fullPath = rootDir;
+    if (!fullPath.empty() && fullPath.back() == '/')
+        fullPath.pop_back();
+    fullPath += req.path;
+    bool existed = std::filesystem::exists(fullPath);
+    if (!existed)
+        return makeErrorResponse(404);
+    std::error_code ec;
+    if (std::filesystem::is_directory(fullPath, ec))
+        return makeErrorResponse(403);
+    std::filesystem::remove(fullPath, ec);
+    if (ec)
+        return makeErrorResponse(500);
+    Response res;
+    res.statusCode = 204;
+    res.statusText = "No Content";
+    res.headers["Content-Length"] = std::to_string(res.body.size());
+    return res;
 }
