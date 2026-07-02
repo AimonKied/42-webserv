@@ -1,7 +1,6 @@
 #pragma once
 
 #include <string>
-
 #include <iostream>
 #include <cstring>
 #include <sys/socket.h>
@@ -37,3 +36,4 @@ using webserv::Client;
 std::string build_response_HARDCODED(int client_fd);
 ssize_t recieve_message(Client& client);
 bool request_complete(std::string buffer);
+void cleanup_client(std::vector<pollfd>& fds, std::map<int, Client>& clients, size_t& i);

@@ -1,4 +1,4 @@
-#include "Client.hpp"
+#include "Webserv.hpp"
 
 namespace webserv{
 
@@ -40,4 +40,14 @@ ssize_t recieve_message(Client& client)
 bool request_complete(std::string buffer)
 {
 	return buffer.find("\r\n\r\n") != std::string::npos || buffer.find("\n\n") != std::string::npos;
+}
+
+void cleanup_client(std::vector<pollfd>& fds, std::map<int, Client>& clients, size_t& i)
+{
+
+	close(fds[i].fd);
+	clients.erase(fds[i].fd);
+	fds.erase(fds.begin() + i);
+	if (i > 0)
+		--i;
 }
