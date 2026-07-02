@@ -2,9 +2,39 @@
 
 #include "Client.hpp"
 
-#include <vector>
-#include <poll.h>
+#include <arpa/inet.h>
+#include <iostream>
 #include <map>
+#include <netinet/in.h>
+#include <poll.h>
+#include <vector>
 
-int create_listening_socket(std::vector<pollfd>& fds);
-int handle_new_connection(int server_fd, std::vector<pollfd>& fds, std::map<int, Client>& clients);
+namespace webserv {
+
+class Server {
+public:
+	explicit Server(int port);
+	~Server();
+
+	int run();
+
+private:
+	Server(const Server& other);
+	Server& operator=(const Server& other);
+
+	int createListeningSocket();
+	int acceptClient();
+	int handleClientRead(size_t& i);
+	int handleClientWrite(size_t& i);
+	void cleanupClient(size_t& i);
+
+	bool requestComplete(const std::string& buffer) const;
+	std::string buildResponse(int clientFd) const;
+
+	int _port;
+	int _serverFd;
+	std::vector<pollfd> _fds;
+	std::map<int, Client> _clients;
+};
+
+} // namespace webserv
