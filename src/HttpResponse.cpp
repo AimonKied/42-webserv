@@ -1,7 +1,7 @@
 #include "HttpResponse.hpp"
 #include <fstream>
 #include <sstream>
-#include <sys/stat.h>
+#include <filesystem>
 #include <string>
 
 std::string Response::toString() const {
@@ -70,4 +70,24 @@ Response Response::build(const Request& req, const std::string& rootDir) {
             res.headers["Content-Length"] = std::to_string(res.body.size());
             return res;
     }
+}
+
+Response Response::buildGet(const Request& req, const std::string& rootDir) {
+    if (req.path.find("..") != std::string::npos) {
+        Response res;
+        res.statusCode = 403;
+        res.statusText = "Forbidden";
+        res.body = "403 Forbidden";
+        res.headers["Content-Length"] = std::to_string(res.body.size());
+        return res;
+    }
+    std::string fullPath = rootDir;
+    if (!fullPath.empty() && fullPath.back() == '/')
+        fullPath.pop_back();
+    fullPath += req.path;
+
+    std::error_code ec;
+    if (std::filesystem::is_directory(fullPath, ec))
+        fullPath += "/index.html";
+    return serveFile(fullPath);
 }
