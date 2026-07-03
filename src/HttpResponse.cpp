@@ -112,8 +112,15 @@ Response Response::buildGet(const Request& req, const std::string& rootDir) {
         return makeErrorResponse(403, rootDir);
 
     std::error_code ec;
-    if (std::filesystem::is_directory(fullPath, ec))
-        fullPath += "/index.html";
+    if (std::filesystem::is_directory(fullPath, ec)) {
+        if (req.path.empty() || req.path.back() != '/') {
+            std::string location = req.path + "/";
+            if (!req.query.empty())
+                location += "?" + req.query;
+            return buildRedirect(301, location);
+        }
+        fullPath += "index.html";
+    }
     return serveFile(fullPath, rootDir);
 }
 
