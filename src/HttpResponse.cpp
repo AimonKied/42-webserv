@@ -5,6 +5,7 @@
 #include <string>
 
 Response makeErrorResponse(int code, const std::string& rootDir);
+std::string getStatusText(int code);
 
 /*
 weakly_canonical macht aus rootDir und fullPath absolute Pfade und die einzelnen Segmente
@@ -166,6 +167,16 @@ Response Response::buildDelete(const Request& req, const std::string& rootDir) {
     Response res;
     res.statusCode = 204;
     res.statusText = "No Content";
+    res.headers["Content-Length"] = std::to_string(res.body.size());
+    return res;
+}
+
+Response Response::buildRedirect(int code, const std::string& location) {
+    Response res;
+    res.statusCode = code;
+    res.statusText = getStatusText(code);
+    res.headers["Location"] = location;
+    res.body = "";
     res.headers["Content-Length"] = std::to_string(res.body.size());
     return res;
 }
