@@ -1,29 +1,49 @@
 #include "Server.hpp"
 
+#include <cerrno>
+
 namespace webserv {
 
+volatile std::sig_atomic_t Server::_signalReceived = 0;
+
 Server::Server(int port)
-	: _port(port), _serverFd(-1), _fds(), _clients()
+	: _running(false), _port(port), _serverFd(-1), _fds(), _clients()
 {
 }
 
 Server::~Server()
 {
-	for (size_t i = 0; i < _fds.size(); ++i)
-		close(_fds[i].fd);
+	closeAllFds();
 }
 
 int Server::run()
 {
-	if (createListeningSocket() < 0)
+	_running = true;
+	_signalReceived = 0;
+	if (setupSignalHandlers() < 0)
 		return 1;
-
-	while (true)
+	if (createListeningSocket() < 0)
 	{
+		closeAllFds();
+		return 1;
+	}
+
+	while (_running)
+	{
+		if (_signalReceived)
+		{
+			std::cout << "\nShutdown signal received, stopping server..." << std::endl;
+			_running = false;
+			break;
+		}
+
 		int ready = poll(_fds.data(), _fds.size(), -1);
 		if (ready == -1)
 		{
+			if (errno == EINTR)
+				continue;
 			perror("bad poll");
+			closeAllFds();
 			return 1;
 		}
 
@@ -39,6 +59,7 @@ int Server::run()
 				if (fd == _serverFd)
 				{
 					std::cerr << "Fatal error on listening socket\n";
+					closeAllFds();
 					return 1;
 				}
 
@@ -54,7 +75,10 @@ int Server::run()
 				if (fd == _serverFd)
 				{
 					if (acceptClient() < 0)
+					{
+						closeAllFds();
 						return 1;
+					}
 				}
 				else if (_clients.at(fd).state == ClientState::Reading && handleClientRead(i) < 0)
 					continue;
@@ -66,6 +90,28 @@ int Server::run()
 			}
 
 		}
+	}
+	closeAllFds();
+	return 0;
+}
+
+void Server::handleSignal(int signal)
+{
+	(void)signal;
+	_signalReceived = 1;
+}
+
+int Server::setupSignalHandlers()
+{
+	if (std::signal(SIGINT, Server::handleSignal) == SIG_ERR)
+	{
+		std::cerr << "failed to install SIGINT handler\n";
+		return -1;
+	}
+	if (std::signal(SIGTERM, Server::handleSignal) == SIG_ERR)
+	{
+		std::cerr << "failed to install SIGTERM handler\n";
+		return -1;
 	}
 	return 0;
 }
@@ -195,6 +241,18 @@ void Server::cleanupClient(size_t& i)
 	_fds.erase(_fds.begin() + i);
 	if (i > 0)
 		--i;
+}
+
+void Server::closeAllFds()
+{
+	for (size_t i = 0; i < _fds.size(); ++i)
+	{
+		if (_fds[i].fd >= 0)
+			close(_fds[i].fd);
+	}
+	_fds.clear();
+	_clients.clear();
+	_serverFd = -1;
 }
 
 bool Server::requestComplete(const std::string& buffer) const
