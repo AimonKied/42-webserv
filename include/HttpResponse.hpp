@@ -19,4 +19,5 @@ class Response {
         static Response buildGet(const Request& req, const std::string& rootDir);
         static Response buildPost(const Request& req, const std::string& rootDir);
         static Response buildDelete(const Request& req, const std::string& rootDir);
+        static Response buildRedirect(int code, const std::string& location);
 };
