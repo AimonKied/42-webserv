@@ -32,6 +32,23 @@ int Server::run()
 			int fd = _fds[i].fd;
 			short revents = _fds[i].revents;
 
+			if (revents == 0)
+				continue;
+			if (revents & (POLLERR | POLLHUP | POLLNVAL))
+			{
+				if (fd == _serverFd)
+				{
+					std::cerr << "Fatal error on listening socket\n";
+					return 1;
+				}
+
+				if (revents & POLLHUP)
+					std::cerr << "Client " << fd << " disconnected\n";
+				else
+					std::cerr << "Client " << fd << " experienced an error\n";
+				cleanupClient(i);
+				continue;
+			}
 			if (revents & POLLIN)
 			{
 				if (fd == _serverFd)
@@ -47,6 +64,7 @@ int Server::run()
 				if (fd != _serverFd && _clients.at(fd).state == ClientState::Writing && handleClientWrite(i) != 0)
 					continue;
 			}
+
 		}
 	}
 	return 0;
@@ -123,7 +141,7 @@ int Server::handleClientRead(size_t& i)
 	if (bytesRead <= 0)
 	{
 		if (bytesRead == 0)
-			std::cout << "Client disconnected" << std::endl;
+			std::cout << "Client at fd " << _fds[i].fd << " disconnected" << std::endl;
 		else
 			perror("bad recv");
 		cleanupClient(i);
