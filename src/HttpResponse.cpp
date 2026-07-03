@@ -39,18 +39,21 @@ std::string Response::getMimeType(const std::string& filePath) {
         return "application/octet-stream";
     std::string ext = filePath.substr(dotPos);
 
-    if (ext == ".html")
-        return "text/html";
-    else if (ext == ".css")
-        return "text/css";
-    else if (ext == ".js")
-        return ("application/javascript");
-    else if (ext == ".png")
-        return "image/png";
-    else if (ext == ".jpg")
-        return "image/jpeg";
-    else if (ext == ".txt")
-        return ("text/plain");
+    if (ext == ".html") return "text/html";
+    else if (ext == ".css") return "text/css";
+    else if (ext == ".js") return "application/javascript";
+    else if (ext == ".png") return "image/png";
+    else if (ext == ".jpg") return "image/jpeg";
+    else if (ext == ".txt") return "text/plain";
+    else if (ext == ".gif") return "image/gif";
+    else if (ext == ".svg") return "image/svg+xml";
+    else if (ext == ".ico") return "image/x-icon";
+    else if (ext == ".json") return "application/json";
+    else if (ext == ".xml") return "application/xml";
+    else if (ext == ".pdf") return "application/pdf";
+    else if (ext == ".woff") return "font/woff";
+    else if (ext == ".woff2") return "font/woff2";
+    else if (ext == ".mp4") return "video/mp4";
     return "application/octet-stream";
 };
 
