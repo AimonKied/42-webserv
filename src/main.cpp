@@ -49,16 +49,24 @@ void runDeleteTest(const std::string& label, const std::string& path) {
 	std::cout << "-----------------------------\n" << std::endl;
 }
 
+void runRedirectTest(const std::string& label, int code, const std::string& location) {
+	Response res = Response::buildRedirect(code, location);
+	std::cout << "=== " << label << " (-> " << location << ") ===\n";
+	std::cout << res.toString() << std::endl;
+	std::cout << "-----------------------------\n" << std::endl;
+}
+
 int main() {
-	// runGetTest("existing file", "/index.html");
 	// runGetTest("nonexistent file", "/doesnotexist.html");
 	// runGetTest("directory (should serve index.html)", "/");
 	// runGetTest("path traversal blocked", "/../main.cpp");
 	// runGetTest("nested existing file", "/");
 
+	runGetTest("Get file", "/error/../index.html");
 	runPostTest("create new file", "/upload_test.txt", "hello world");
-
 	runDeleteTest("delete existing file", "/upload_test.txt");
+	runRedirectTest("permanent redirect", 301, "/new-page");
+	runRedirectTest("temporary redirect", 307, "/new-page");
 }
 
 
