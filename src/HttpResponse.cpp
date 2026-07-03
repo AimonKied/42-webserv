@@ -6,6 +6,37 @@
 
 Response makeErrorResponse(int code, const std::string& rootDir);
 
+/*
+weakly_canonical macht aus rootDir und fullPath absolute Pfade und die einzelnen Segmente
+der Pfade werden dann in einem loop verglichen. Solange alle segmente von root im zielpfad
+vorkommen (in gleicher reihenfolge, am anfang), wird true zurueckgegeben.
+*/
+static bool isPathInsideRoot(const std::string& fullPath, const std::string& rootDir) {
+    std::error_code ec;
+
+    std::filesystem::path resolvedRoot = std::filesystem::weakly_canonical(rootDir, ec);
+    if (ec)
+        return false;
+    std::filesystem::path resolvedFull = std::filesystem::weakly_canonical(fullPath, ec);
+    if (ec)
+        return false;
+
+    auto rootSegment = resolvedRoot.begin(); auto fullSegment = resolvedFull.begin();
+
+    while (rootSegment != resolvedRoot.end()) {
+        bool fullPathRanOut = (fullSegment == resolvedFull.end());
+        bool segmentsDiffer = !fullPathRanOut && (*fullSegment != *rootSegment);
+
+        if (fullPathRanOut || segmentsDiffer)
+            return false;
+
+        ++rootSegment;
+        ++fullSegment;
+    }
+
+    return true;
+}
+
 std::string Response::toString() const {
     std::string result;
 
@@ -71,12 +102,13 @@ Response Response::build(const Request& req, const std::string& rootDir) {
 }
 
 Response Response::buildGet(const Request& req, const std::string& rootDir) {
-    if (req.path.find("..") != std::string::npos)
-        return makeErrorResponse(403, rootDir);
     std::string fullPath = rootDir;
     if (!fullPath.empty() && fullPath.back() == '/')
         fullPath.pop_back();
     fullPath += req.path;
+
+    if (!isPathInsideRoot(fullPath, rootDir))
+        return makeErrorResponse(403, rootDir);
 
     std::error_code ec;
     if (std::filesystem::is_directory(fullPath, ec))
@@ -85,8 +117,6 @@ Response Response::buildGet(const Request& req, const std::string& rootDir) {
 }
 
 Response Response::buildPost(const Request& req, const std::string& rootDir) {
-    if (req.path.find("..") != std::string::npos)
-        return makeErrorResponse(403, rootDir);
     if (!req.path.empty() && req.path.back() == '/')
         return makeErrorResponse(400, rootDir);
     std::string fullPath = rootDir;
@@ -94,7 +124,11 @@ Response Response::buildPost(const Request& req, const std::string& rootDir) {
         fullPath.pop_back();
     fullPath += req.path;
 
-    bool existed = std::filesystem::exists(fullPath);
+    if (!isPathInsideRoot(fullPath, rootDir))
+        return makeErrorResponse(403, rootDir);
+
+    std::error_code ec;
+    bool existed = std::filesystem::exists(fullPath, ec);
     std::ofstream outFile(fullPath, std::ios::binary);
     if (!outFile.is_open())
         return makeErrorResponse(500, rootDir);
@@ -110,18 +144,20 @@ Response Response::buildPost(const Request& req, const std::string& rootDir) {
 }
 
 Response Response::buildDelete(const Request& req, const std::string& rootDir) {
-    if (req.path.find("..") != std::string::npos)
-        return makeErrorResponse(403, rootDir);
     if (!req.path.empty() && req.path.back() == '/')
         return makeErrorResponse(400, rootDir);
     std::string fullPath = rootDir;
     if (!fullPath.empty() && fullPath.back() == '/')
         fullPath.pop_back();
     fullPath += req.path;
-    bool existed = std::filesystem::exists(fullPath);
+
+    if (!isPathInsideRoot(fullPath, rootDir))
+        return makeErrorResponse(403, rootDir);
+
+    std::error_code ec;
+    bool existed = std::filesystem::exists(fullPath, ec);
     if (!existed)
         return makeErrorResponse(404, rootDir);
-    std::error_code ec;
     if (std::filesystem::is_directory(fullPath, ec))
         return makeErrorResponse(403, rootDir);
     std::filesystem::remove(fullPath, ec);
