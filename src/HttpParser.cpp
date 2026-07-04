@@ -5,6 +5,56 @@
 
 namespace webserv {
 
+namespace {
+
+std::string trim(const std::string &value) {
+    std::string::size_type start = 0;
+    while (start < value.size() && (value[start] == ' ' || value[start] == '\t')) {
+        ++start;
+    }
+
+    std::string::size_type end = value.size();
+    while (end > start && (value[end - 1] == ' ' || value[end - 1] == '\t')) {
+        --end;
+    }
+
+    return value.substr(start, end - start);
+}
+
+void parseHeaders(const std::string &rawRequest,
+                  std::string::size_type headersStart,
+                  Request &request) {
+    std::string::size_type current = headersStart;
+
+    while (current <= rawRequest.size()) {
+        const std::string::size_type lineEnd = rawRequest.find("\r\n", current);
+        if (lineEnd == std::string::npos) {
+            throw std::invalid_argument("Incomplete header line");
+        }
+
+        if (lineEnd == current) {
+            return;
+        }
+
+        const std::string headerLine = rawRequest.substr(current, lineEnd - current);
+        const std::string::size_type colon = headerLine.find(':');
+        if (colon == std::string::npos) {
+            throw std::invalid_argument("Malformed header line");
+        }
+
+        const std::string name = trim(headerLine.substr(0, colon));
+        const std::string value = trim(headerLine.substr(colon + 1));
+        if (name.empty()) {
+            throw std::invalid_argument("Malformed header line");
+        }
+
+        request.headers[name] = value;
+        current = lineEnd + 2;
+    }
+}
+
+} // namespace
+
 Request::Request()
     : method(HttpMethod::Unknown), path(), version(), headers(), body() {
 }
@@ -58,6 +108,9 @@ Request HttpParser::parse(const std::string &rawRequest) const {
 
     request.path = target;
     request.version = version;
+
+    parseHeaders(rawRequest, lineEnd + 2, request);
+
     return request;
 }
 
