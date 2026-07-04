@@ -1,5 +1,6 @@
 #pragma once
 
+#include "HttpRequest.hpp"
 #include <string>
 #include <vector>
 #include <unordered_map>
