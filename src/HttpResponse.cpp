@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <string>
 
-Response makeErrorResponse(int code, const std::string& rootDir);
+Response makeErrorResponse(int code, const LocationConfig& loc);
 std::string getStatusText(int code);
 
 /*
@@ -49,12 +49,12 @@ std::string Response::toString() const {
     return result;
 };
 
-Response Response::serveFile(const std::string& filePath, const std::string& rootDir) {
+Response Response::serveFile(const std::string& filePath, const LocationConfig& loc) {
     Response res;
     std::ifstream file(filePath);
 
     if (!file.is_open())
-        return makeErrorResponse(404, rootDir);
+        return makeErrorResponse(404, loc);
     std::stringstream ss;
     ss << file.rdbuf();
     res.body = ss.str();
@@ -89,27 +89,27 @@ std::string Response::getMimeType(const std::string& filePath) {
     return "application/octet-stream";
 };
 
-Response Response::build(const Request& req, const std::string& rootDir) {
+Response Response::build(const Request& req, const LocationConfig& loc) {
     switch(req.method) {
         case Method::GET:
-            return buildGet(req, rootDir);
+            return buildGet(req, loc);
         case Method::POST:
-            return buildPost(req,rootDir);
+            return buildPost(req, loc);
         case Method::DELETE:
-            return buildDelete(req, rootDir);
+            return buildDelete(req, loc);
         default:
-            return makeErrorResponse(405, rootDir);
+            return makeErrorResponse(405, loc);
     }
 }
 
-Response Response::buildGet(const Request& req, const std::string& rootDir) {
-    std::string fullPath = rootDir;
+Response Response::buildGet(const Request& req, const LocationConfig& loc) {
+    std::string fullPath = loc.root;
     if (!fullPath.empty() && fullPath.back() == '/')
         fullPath.pop_back();
     fullPath += req.path;
 
-    if (!isPathInsideRoot(fullPath, rootDir))
-        return makeErrorResponse(403, rootDir);
+    if (!isPathInsideRoot(fullPath, loc.root))
+        return makeErrorResponse(403, loc);
 
     std::error_code ec;
     if (std::filesystem::is_directory(fullPath, ec)) {
@@ -119,27 +119,27 @@ Response Response::buildGet(const Request& req, const std::string& rootDir) {
                 location += "?" + req.query;
             return buildRedirect(301, location);
         }
-        fullPath += "index.html";
+        fullPath += loc.index;
     }
-    return serveFile(fullPath, rootDir);
+    return serveFile(fullPath, loc);
 }
 
-Response Response::buildPost(const Request& req, const std::string& rootDir) {
+Response Response::buildPost(const Request& req, const LocationConfig& loc) {
     if (!req.path.empty() && req.path.back() == '/')
-        return makeErrorResponse(400, rootDir);
-    std::string fullPath = rootDir;
+        return makeErrorResponse(400, loc);
+    std::string fullPath = loc.root;
     if (!fullPath.empty() && fullPath.back() == '/')
         fullPath.pop_back();
     fullPath += req.path;
 
-    if (!isPathInsideRoot(fullPath, rootDir))
-        return makeErrorResponse(403, rootDir);
+    if (!isPathInsideRoot(fullPath, loc.root))
+        return makeErrorResponse(403, loc);
 
     std::error_code ec;
     bool existed = std::filesystem::exists(fullPath, ec);
     std::ofstream outFile(fullPath, std::ios::binary);
     if (!outFile.is_open())
-        return makeErrorResponse(500, rootDir);
+        return makeErrorResponse(500, loc);
 
     outFile << req.body;
     outFile.close();
@@ -151,26 +151,26 @@ Response Response::buildPost(const Request& req, const std::string& rootDir) {
     return res;
 }
 
-Response Response::buildDelete(const Request& req, const std::string& rootDir) {
+Response Response::buildDelete(const Request& req, const LocationConfig& loc) {
     if (!req.path.empty() && req.path.back() == '/')
-        return makeErrorResponse(400, rootDir);
-    std::string fullPath = rootDir;
+        return makeErrorResponse(400, loc);
+    std::string fullPath = loc.root;
     if (!fullPath.empty() && fullPath.back() == '/')
         fullPath.pop_back();
     fullPath += req.path;
 
-    if (!isPathInsideRoot(fullPath, rootDir))
-        return makeErrorResponse(403, rootDir);
+    if (!isPathInsideRoot(fullPath, loc.root))
+        return makeErrorResponse(403, loc);
 
     std::error_code ec;
     bool existed = std::filesystem::exists(fullPath, ec);
     if (!existed)
-        return makeErrorResponse(404, rootDir);
+        return makeErrorResponse(404, loc);
     if (std::filesystem::is_directory(fullPath, ec))
-        return makeErrorResponse(403, rootDir);
+        return makeErrorResponse(403, loc);
     std::filesystem::remove(fullPath, ec);
     if (ec)
-        return makeErrorResponse(500, rootDir);
+        return makeErrorResponse(500, loc);
     Response res;
     res.statusCode = 204;
     res.statusText = "No Content";

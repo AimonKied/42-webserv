@@ -35,12 +35,12 @@ std::string getStatusText(int code) {
     }
 }
 
-Response makeErrorResponse(int code, const std::string& rootDir) {
+Response makeErrorResponse(int code, const LocationConfig& loc) {
     Response res;
     res.statusCode = code;
     res.statusText = getStatusText(code);
 
-    std::string errorPath = rootDir;
+    std::string errorPath = loc.root;
     if (!errorPath.empty() && errorPath.back() == '/')
         errorPath.pop_back();
     errorPath += "/error/" + std::to_string(code) + ".html";

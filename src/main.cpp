@@ -15,35 +15,35 @@
 #include "HttpResponse.hpp"
 #include <iostream>
 
-void runGetTest(const std::string& label, const std::string& path) {
+void runGetTest(const std::string& label, const std::string& path, const LocationConfig& loc) {
 	Request req;
 	req.method = Method::GET;
 	req.path = path;
 
-	Response res = Response::build(req, "./www");
+	Response res = Response::build(req, loc);
 	std::cout << "=== " << label << " (path: " << path << ") ===\n";
 	std::cout << res.toString() << std::endl;
 	std::cout << "-----------------------------\n" << std::endl;
 }
 
-void runPostTest(const std::string& label, const std::string& path, const std::string& body) {
+void runPostTest(const std::string& label, const std::string& path, const std::string& body, const LocationConfig& loc) {
 	Request req;
 	req.method = Method::POST;
 	req.path = path;
 	req.body = body;
 
-	Response res = Response::build(req, "./www");
+	Response res = Response::build(req, loc);
 	std::cout << "=== " << label << " (path: " << path << ") ===\n";
 	std::cout << res.toString() << std::endl;
 	std::cout << "-----------------------------\n" << std::endl;
 }
 
-void runDeleteTest(const std::string& label, const std::string& path) {
+void runDeleteTest(const std::string& label, const std::string& path, const LocationConfig& loc) {
 	Request req;
 	req.method = Method::DELETE;
 	req.path = path;
 
-	Response res = Response::build(req, "./www");
+	Response res = Response::build(req, loc);
 	std::cout << "=== " << label << " (path: " << path << ") ===\n";
 	std::cout << res.toString() << std::endl;
 	std::cout << "-----------------------------\n" << std::endl;
@@ -57,14 +57,13 @@ void runRedirectTest(const std::string& label, int code, const std::string& loca
 }
 
 int main() {
-	// runGetTest("nonexistent file", "/doesnotexist.html");
-	// runGetTest("directory (should serve index.html)", "/");
-	// runGetTest("path traversal blocked", "/../main.cpp");
-	// runGetTest("nested existing file", "/");
+	LocationConfig loc;
+	loc.root = "./www";
+	loc.index = "index.html";
 
-	runGetTest("Get file", "/error/../index.html");
-	runPostTest("create new file", "/upload_test.txt", "hello world");
-	runDeleteTest("delete existing file", "/upload_test.txt");
+	runGetTest("Get file", "/", loc);
+	runPostTest("create new file", "/upload_test.txt", "hello world", loc);
+	runDeleteTest("delete existing file", "/upload_test.txt", loc);
 	runRedirectTest("permanent redirect", 301, "/new-page");
 	runRedirectTest("temporary redirect", 307, "/new-page");
 }
