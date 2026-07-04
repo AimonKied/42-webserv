@@ -37,7 +37,7 @@ int Server::run()
 			break;
 		}
 
-		int ready = poll(_fds.data(), _fds.size(), -1);
+		int ready = poll(_fds.data(), _fds.size(), 1000);
 		if (ready == -1)
 		{
 			if (errno == EINTR)
@@ -49,6 +49,7 @@ int Server::run()
 
 		for (size_t i = 0; i < _fds.size(); ++i)
 		{
+			checkClientTimeouts();
 			int fd = _fds[i].fd;
 			short revents = _fds[i].revents;
 
@@ -191,7 +192,11 @@ int Server::handleClientRead(size_t& i)
 	if (bytesRead <= 0)
 	{
 		if (bytesRead == 0)
+		{
 			std::cout << "Client at fd " << _fds[i].fd << " disconnected" << std::endl;
+			cleanupClient(i);
+			return -1;
+		}
 		if (bytesRead == -1)
 		{
 			if (errno == EAGAIN || errno == EWOULDBLOCK)
@@ -293,6 +298,29 @@ int Server::setNonBlocking(int fd)
 	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
 		return -1;
 	return 0;
+}
+
+void Server::checkClientTimeouts()
+{
+	std::time_t now = std::time(nullptr);
+
+	for (size_t i = 0; i < _fds.size(); ++i)
+	{
+		int fd = _fds[i].fd;
+
+		if (fd == _serverFd)
+			continue;
+		
+		Client& client = _clients.at(fd);
+
+		if (now - client.lastActivity > CLIENT_TIMEOUT_SECONDS)
+		{
+			std::cout << "Client at fd: " << fd << " timed out" << std::endl;
+			cleanupClient(i);
+			--i;
+		}
+	}
+
 }
 
 } // namespace webserv

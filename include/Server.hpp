@@ -12,6 +12,8 @@
 #include <fcntl.h>
 #include <errno.h>
 
+static const int CLIENT_TIMEOUT_SECONDS = 30;
+
 namespace webserv {
 
 class Server {
@@ -35,6 +37,7 @@ private:
 	void cleanupClient(size_t& i);
 	void closeAllFds();
 	int setNonBlocking(int fd);
+	void checkClientTimeouts();
 
 	bool requestComplete(const std::string& buffer) const;
 	std::string buildResponse(int clientFd) const;
