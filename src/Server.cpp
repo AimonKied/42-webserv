@@ -119,6 +119,7 @@ int Server::setupSignalHandlers()
 int Server::createListeningSocket()
 {
 	_serverFd = socket(AF_INET, SOCK_STREAM, 0);
+	setNonBlocking(_serverFd);
 	if (_serverFd == -1)
 	{
 		std::cerr << "socket() failed\n";
@@ -167,8 +168,11 @@ int Server::acceptClient()
 	std::cout << "New connection is pending" << std::endl;
 
 	int clientFd = accept(_serverFd, NULL, NULL);
+	setNonBlocking(clientFd);
 	if (clientFd == -1)
 	{
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return 0; // fake news from poll client not ready
 		std::cerr << "accept() failed\n";
 		return -1;
 	}
@@ -188,9 +192,14 @@ int Server::handleClientRead(size_t& i)
 	{
 		if (bytesRead == 0)
 			std::cout << "Client at fd " << _fds[i].fd << " disconnected" << std::endl;
-		else
-			perror("bad recv");
-		cleanupClient(i);
+		if (bytesRead == -1)
+		{
+			if (errno == EAGAIN || errno == EWOULDBLOCK)
+				return 0; // fake news from poll client not ready
+			else
+				perror("bad recv");
+			cleanupClient(i);
+		}
 		return -1;
 	}
 	if (requestComplete(client.readBuffer))
@@ -222,6 +231,8 @@ int Server::handleClientWrite(size_t& i)
 
 	if (bytesSent < 0)
 	{
+		if (errno == EAGAIN || errno == EWOULDBLOCK)
+			return 0;
 		perror("bad byte send");
 		cleanupClient(i);
 		return -1;
@@ -273,4 +284,16 @@ std::string Server::buildResponse(int clientFd) const
 		body;
 }
 
+int Server::setNonBlocking(int fd)
+{
+	int flags = fcntl(fd, F_GETFL, 0);
+	if (flags == -1)
+		return -1;
+	
+	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) == -1)
+		return -1;
+	return 0;
+}
+
 } // namespace webserv
+

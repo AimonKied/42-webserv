@@ -9,6 +9,8 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <vector>
+#include <fcntl.h>
+#include <errno.h>
 
 namespace webserv {
 
@@ -32,6 +34,7 @@ private:
 	int handleClientWrite(size_t& i);
 	void cleanupClient(size_t& i);
 	void closeAllFds();
+	int setNonBlocking(int fd);
 
 	bool requestComplete(const std::string& buffer) const;
 	std::string buildResponse(int clientFd) const;
