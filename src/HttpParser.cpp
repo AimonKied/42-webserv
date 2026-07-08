@@ -21,9 +21,9 @@ std::string trim(const std::string &value) {
     return value.substr(start, end - start);
 }
 
-void parseHeaders(const std::string &rawRequest,
-                  std::string::size_type headersStart,
-                  Request &request) {
+std::string::size_type parseHeaders(const std::string &rawRequest,
+                                    std::string::size_type headersStart,
+                                    Request &request) {
     std::string::size_type current = headersStart;
 
     while (current <= rawRequest.size()) {
@@ -51,6 +51,24 @@ void parseHeaders(const std::string &rawRequest,
         request.headers[name] = value;
         current = lineEnd + 2;
     }
+
+    return current;
+}
+
+bool hasHeader(const Request &request, const std::string &name) {
+    return request.headers.find(name) != request.headers.end();
+}
+
+std::string::size_type parseContentLength(const std::string &value) {
+    std::istringstream lengthStream(value);
+    std::string::size_type contentLength = 0;
+    char leftover = '\0';
+
+    if (!(lengthStream >> contentLength) || (lengthStream >> leftover)) {
+        throw std::invalid_argument("Invalid Content-Length header");
+    }
+
+    return contentLength;
 }
 
 } // namespace
@@ -109,7 +127,23 @@ Request HttpParser::parse(const std::string &rawRequest) const {
     request.path = target;
     request.version = version;
 
-    parseHeaders(rawRequest, lineEnd + 2, request);
+    const std::string::size_type bodyStart = parseHeaders(rawRequest, lineEnd + 2, request);
+
+    if (!hasHeader(request, "Host")) {
+        throw std::invalid_argument("Missing Host header");
+    }
+
+    const std::map<std::string, std::string>::const_iterator contentLengthIt =
+        request.headers.find("Content-Length");
+    if (contentLengthIt != request.headers.end()) {
+        const std::string::size_type contentLength = parseContentLength(contentLengthIt->second);
+
+        if (rawRequest.size() < bodyStart + contentLength) {
+            throw std::invalid_argument("Incomplete body");
+        }
+
+        request.body = rawRequest.substr(bodyStart, contentLength);
+    }
 
     return request;
 }
