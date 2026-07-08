@@ -33,7 +33,7 @@ std::string::size_type parseHeaders(const std::string &rawRequest,
         }
 
         if (lineEnd == current) {
-            return;
+            return current + 2;
         }
 
         const std::string headerLine = rawRequest.substr(current, lineEnd - current);
@@ -46,6 +46,10 @@ std::string::size_type parseHeaders(const std::string &rawRequest,
         const std::string value = trim(headerLine.substr(colon + 1));
         if (name.empty()) {
             throw std::invalid_argument("Malformed header line");
+        }
+
+        if (request.headers.find(name) != request.headers.end()) {
+            throw std::invalid_argument("Duplicate header line");
         }
 
         request.headers[name] = value;
