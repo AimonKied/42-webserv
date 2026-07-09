@@ -5,6 +5,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <ctime>
+#include <iostream>
 
 namespace webserv {
 
@@ -20,6 +21,7 @@ public:
 
 	ssize_t receive();
 	ssize_t sendChunk();
+	size_t MAX_REQUEST_SIZE = 1024 * 1024; // 1mb
 
 	int fd;
 	std::string readBuffer;

@@ -16,6 +16,12 @@ ssize_t Client::receive()
 	if (bytesRead > 0)
 	{
 		readBuffer.append(buffer, bytesRead);
+		if (readBuffer.size() > MAX_REQUEST_SIZE)
+		{
+			// 413 payload too large
+			std::cout << "request too large\n";
+			return -1;
+		}
 		lastActivity = std::time(nullptr);
 	}
 	return bytesRead;
