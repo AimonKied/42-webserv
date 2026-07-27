@@ -104,6 +104,92 @@ std::string::size_type parseContentLength(const std::string &value) {
     return contentLength;
 }
 
+std::string::size_type parseChunkSize(const std::string &line) {
+    const std::string::size_type extensionStart = line.find(';');
+    const std::string value = trim(line.substr(0, extensionStart));
+    std::string::size_type chunkSize = 0;
+
+    if (value.empty()) {
+        throw std::invalid_argument("Invalid chunk size");
+    }
+
+    for (std::string::size_type index = 0; index < value.size(); ++index) {
+        std::string::size_type digit = 0;
+        if (value[index] >= '0' && value[index] <= '9') {
+            digit = static_cast<std::string::size_type>(value[index] - '0');
+        } else if (value[index] >= 'a' && value[index] <= 'f') {
+            digit = static_cast<std::string::size_type>(value[index] - 'a' + 10);
+        } else if (value[index] >= 'A' && value[index] <= 'F') {
+            digit = static_cast<std::string::size_type>(value[index] - 'A' + 10);
+        } else {
+            throw std::invalid_argument("Invalid chunk size");
+        }
+
+        if (chunkSize >
+            (std::numeric_limits<std::string::size_type>::max() - digit) / 16) {
+            throw std::invalid_argument("Invalid chunk size");
+        }
+        chunkSize = chunkSize * 16 + digit;
+    }
+    return chunkSize;
+}
+
+bool parseChunkedBody(const std::string &rawRequest,
+                      std::string::size_type bodyStart,
+                      std::string::size_type maxBodySize,
+                      std::string &body,
+                      int &errorCode) {
+    std::string::size_type current = bodyStart;
+
+    while (true) {
+        const std::string::size_type sizeLineEnd =
+            rawRequest.find("\r\n", current);
+        if (sizeLineEnd == std::string::npos) {
+            return false;
+        }
+
+        std::string::size_type chunkSize = 0;
+        try {
+            chunkSize = parseChunkSize(
+                rawRequest.substr(current, sizeLineEnd - current));
+        } catch (const std::invalid_argument &) {
+            errorCode = 400;
+            return false;
+        }
+        current = sizeLineEnd + 2;
+
+        if (chunkSize == 0) {
+            if (rawRequest.size() - current < 2) {
+                return false;
+            }
+            if (rawRequest.compare(current, 2, "\r\n") != 0) {
+                errorCode = 400;
+                return false;
+            }
+            return true;
+        }
+
+        if (chunkSize > maxBodySize - body.size()) {
+            errorCode = 413;
+            return false;
+        }
+        if (chunkSize > rawRequest.size() - current) {
+            return false;
+        }
+        if (rawRequest.size() - (current + chunkSize) < 2) {
+            return false;
+        }
+
+        body.append(rawRequest, current, chunkSize);
+        current += chunkSize;
+        if (rawRequest.compare(current, 2, "\r\n") != 0) {
+            errorCode = 400;
+            return false;
+        }
+        current += 2;
+    }
+}
+
 } // namespace
 
 Request::Request()
@@ -211,6 +297,29 @@ Request HttpParser::parse(const std::string &rawRequest,
 
     const std::unordered_map<std::string, std::string>::const_iterator contentLengthIt =
         request.headers.find("content-length");
+    const std::unordered_map<std::string, std::string>::const_iterator transferEncodingIt =
+        request.headers.find("transfer-encoding");
+
+    if (contentLengthIt != request.headers.end() &&
+        transferEncodingIt != request.headers.end()) {
+        return errorRequest(400);
+    }
+
+    if (transferEncodingIt != request.headers.end()) {
+        if (toLower(trim(transferEncodingIt->second)) != "chunked") {
+            return errorRequest(501);
+        }
+
+        int chunkError = 0;
+        if (!parseChunkedBody(rawRequest, bodyStart, maxBodySize,
+                              request.body, chunkError)) {
+            if (chunkError != 0) {
+                return errorRequest(chunkError);
+            }
+            return request;
+        }
+    }
+
     if (contentLengthIt != request.headers.end()) {
         std::string::size_type contentLength = 0;
         try {
