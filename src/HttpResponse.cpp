@@ -49,10 +49,23 @@ std::string Response::toString() const {
     return result;
 };
 
+/*
+Ein ifstream laesst sich auch auf ein Verzeichnis oeffnen - is_open() ist dann true und
+das Lesen liefert einfach 0 Bytes. Ohne diesen Check kaeme bei jedem GET auf ein
+Verzeichnis, dessen index-Datei nicht aufgeloest werden konnte, ein 200 mit leerem Body
+raus statt eines Fehlers. Gleiches gilt fuer FIFOs und Geraetedateien im Document-Root.
+403 statt 404, weil die Ressource ja existiert - sobald autoindex implementiert ist,
+faengt buildGet den Verzeichnisfall vorher ab und das hier bleibt das Sicherheitsnetz.
+*/
 Response Response::serveFile(const std::string& filePath, const LocationConfig& loc) {
     Response res;
-    std::ifstream file(filePath);
+    std::error_code ec;
 
+    const std::filesystem::file_status status = std::filesystem::status(filePath, ec);
+    if (std::filesystem::exists(status) && !std::filesystem::is_regular_file(status))
+        return makeErrorResponse(403, loc);
+
+    std::ifstream file(filePath);
     if (!file.is_open())
         return makeErrorResponse(404, loc);
     std::stringstream ss;
