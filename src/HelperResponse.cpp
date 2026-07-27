@@ -4,18 +4,28 @@
 #include <filesystem>
 #include <string>
 
-// 200 OK                    - Request erfolgreich, Body enthaelt angeforderte Ressource
-// 201 Created                - Ressource wurde neu angelegt (z.B. POST)
-// 204 No Content             - Erfolgreich, aber kein Body (z.B. DELETE)
-// 301 Moved Permanently      - Ressource dauerhaft umgezogen, Client darf cachen
-// 302 Found                  - Ressource temporaer umgezogen, kein Caching
-// 307 Temporary Redirect     - wie 302, Methode/Body bleiben garantiert gleich
-// 308 Permanent Redirect     - wie 301, Methode/Body bleiben garantiert gleich
-// 400 Bad Request            - Request fehlerhaft/nicht interpretierbar
-// 403 Forbidden              - Zugriff verweigert
-// 404 Not Found               - Ressource existiert nicht
-// 405 Method Not Allowed      - HTTP-Methode fuer diese Route nicht erlaubt
-// 500 Internal Server Error   - unerwarteter Serverfehler (z.B. Datei nicht schreibbar)
+// 200 OK                          - Request erfolgreich, Body enthaelt angeforderte Ressource
+// 201 Created                     - Ressource wurde neu angelegt (z.B. POST)
+// 204 No Content                  - Erfolgreich, aber kein Body (z.B. DELETE)
+// 301 Moved Permanently           - Ressource dauerhaft umgezogen, Client darf cachen
+// 302 Found                       - Ressource temporaer umgezogen, kein Caching
+// 307 Temporary Redirect          - wie 302, Methode/Body bleiben garantiert gleich
+// 308 Permanent Redirect          - wie 301, Methode/Body bleiben garantiert gleich
+// 400 Bad Request                 - Request fehlerhaft/nicht interpretierbar     [Parser]
+// 403 Forbidden                   - Zugriff verweigert
+// 404 Not Found                   - Ressource existiert nicht
+// 405 Method Not Allowed          - HTTP-Methode fuer diese Route nicht erlaubt  [Parser]
+// 408 Request Timeout             - Client hat zu lange nichts geschickt         [Socket]
+// 411 Length Required             - Body ohne Content-Length geschickt
+// 413 Payload Too Large           - Body groesser als clientMaxBodySize          [Parser]
+// 414 URI Too Long                - Request-Line laenger als erlaubt             [Parser]
+// 431 Request Header Fields Too Large - Header-Block zu gross                    [Parser]
+// 500 Internal Server Error       - unerwarteter Serverfehler (z.B. Datei nicht schreibbar)
+// 501 Not Implemented             - Feature nicht unterstuetzt (z.B. fremdes Transfer-Encoding) [Parser]
+// 505 HTTP Version Not Supported  - alles ausser HTTP/1.1                        [Parser]
+//
+// [Parser] = wird von HttpParser::parse ueber Request::errorCode geliefert
+// [Socket] = kommt spaeter aus dem Client-Timeout im Server-Loop
 
 std::string getStatusText(int code) {
     switch (code) {
@@ -30,7 +40,14 @@ std::string getStatusText(int code) {
         case 403: return "Forbidden";
         case 404: return "Not Found";
         case 405: return "Method Not Allowed";
+        case 408: return "Request Timeout";
+        case 411: return "Length Required";
+        case 413: return "Payload Too Large";
+        case 414: return "URI Too Long";
+        case 431: return "Request Header Fields Too Large";
         case 500: return "Internal Server Error";
+        case 501: return "Not Implemented";
+        case 505: return "HTTP Version Not Supported";
         default:  return "Unknown";
     }
 }
