@@ -70,6 +70,7 @@ Response makeErrorResponse(int code, const LocationConfig& loc) {
         res.headers["Content-Type"] = "text/html";
     } else {
         res.body = std::to_string(code) + " " + res.statusText;
+        res.headers["Content-Type"] = "text/plain";
     }
     res.headers["Content-Length"] = std::to_string(res.body.size());
     return res;
