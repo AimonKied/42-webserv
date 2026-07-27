@@ -3,6 +3,7 @@
 #include <sstream>
 #include <filesystem>
 #include <string>
+#include <cctype>
 
 Response makeErrorResponse(int code, const LocationConfig& loc);
 std::string getStatusText(int code);
@@ -87,11 +88,18 @@ Response Response::serveFile(const std::string& filePath, const LocationConfig& 
     return res;
 };
 
+/*
+extension() statt rfind('.') auf dem ganzen Pfad: bei "/dir.css/datei" haette rfind den
+Punkt im Verzeichnisnamen gefunden und ".css/datei" als Endung geliefert. Ausserdem wird
+kleingeschrieben, sonst landen ".HTML" oder ".PNG" im octet-stream-Fallback und der
+Browser laedt die Datei runter statt sie anzuzeigen.
+*/
 std::string Response::getMimeType(const std::string& filePath) {
-    size_t dotPos = filePath.rfind('.');
-    if (dotPos == std::string::npos)
+    std::string ext = std::filesystem::path(filePath).extension().string();
+    if (ext.empty())
         return "application/octet-stream";
-    std::string ext = filePath.substr(dotPos);
+    for (char& c : ext)
+        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
     if (ext == ".html") return "text/html";
     else if (ext == ".css") return "text/css";
