@@ -1,9 +1,7 @@
 #pragma once
 
-#include "Request.hpp"
+#include "HttpRequest.hpp"
 #include <string>
-
-namespace webserv {
 
 class HttpParser {
 public:
@@ -13,7 +11,5 @@ public:
     Request parse(const std::string &rawRequest) const;
 
 private:
-    HttpMethod parseMethod(const std::string &method) const;
+    Method parseMethod(const std::string &method) const;
 };
-
-} // namespace webserv

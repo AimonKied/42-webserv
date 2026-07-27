@@ -3,8 +3,6 @@
 #include <sstream>
 #include <stdexcept>
 
-namespace webserv {
-
 namespace {
 
 std::string trim(const std::string &value) {
@@ -78,7 +76,15 @@ std::string::size_type parseContentLength(const std::string &value) {
 } // namespace
 
 Request::Request()
-    : method(HttpMethod::Unknown), path(), version(), headers(), body() {
+    : method(Method::UNKNOWN),
+      uri(),
+      path(),
+      query(),
+      version(),
+      headers(),
+      body(),
+      complete(false),
+      errorCode(0) {
 }
 
 HttpParser::HttpParser() {
@@ -87,17 +93,17 @@ HttpParser::HttpParser() {
 HttpParser::~HttpParser() {
 }
 
-HttpMethod HttpParser::parseMethod(const std::string &method) const {
+Method HttpParser::parseMethod(const std::string &method) const {
     if (method == "GET") {
-        return HttpMethod::Get;
+        return Method::GET;
     }
     if (method == "POST") {
-        return HttpMethod::Post;
+        return Method::POST;
     }
     if (method == "DELETE") {
-        return HttpMethod::Delete;
+        return Method::DELETE;
     }
-    return HttpMethod::Unknown;
+    return Method::UNKNOWN;
 }
 
 Request HttpParser::parse(const std::string &rawRequest) const {
@@ -120,7 +126,7 @@ Request HttpParser::parse(const std::string &rawRequest) const {
 
     Request request;
     request.method = parseMethod(methodToken);
-    if (request.method == HttpMethod::Unknown) {
+    if (request.method == Method::UNKNOWN) {
         throw std::invalid_argument("Unsupported method");
     }
 
@@ -128,7 +134,12 @@ Request HttpParser::parse(const std::string &rawRequest) const {
         throw std::invalid_argument("Unsupported HTTP version");
     }
 
-    request.path = target;
+    request.uri = target;
+    const std::string::size_type queryStart = target.find('?');
+    request.path = target.substr(0, queryStart);
+    if (queryStart != std::string::npos) {
+        request.query = target.substr(queryStart + 1);
+    }
     request.version = version;
 
     const std::string::size_type bodyStart = parseHeaders(rawRequest, lineEnd + 2, request);
@@ -137,7 +148,7 @@ Request HttpParser::parse(const std::string &rawRequest) const {
         throw std::invalid_argument("Missing Host header");
     }
 
-    const std::map<std::string, std::string>::const_iterator contentLengthIt =
+    const std::unordered_map<std::string, std::string>::const_iterator contentLengthIt =
         request.headers.find("Content-Length");
     if (contentLengthIt != request.headers.end()) {
         const std::string::size_type contentLength = parseContentLength(contentLengthIt->second);
@@ -149,7 +160,6 @@ Request HttpParser::parse(const std::string &rawRequest) const {
         request.body = rawRequest.substr(bodyStart, contentLength);
     }
 
+    request.complete = true;
     return request;
 }
-
-} // namespace webserv
