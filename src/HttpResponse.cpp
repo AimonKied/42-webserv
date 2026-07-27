@@ -205,10 +205,14 @@ Response Response::buildDelete(const Request& req, const LocationConfig& loc) {
     std::filesystem::remove(fullPath, ec);
     if (ec)
         return makeErrorResponse(500, loc);
+    /*
+    Bewusst ohne Content-Length: RFC 7230 verbietet den Header bei 204, weil die Antwort
+    per Definition keinen Body haben kann. Ein "Content-Length: 0" ist zwar harmlos, aber
+    manche Clients werten den Widerspruch als Framing-Fehler.
+    */
     Response res;
     res.statusCode = 204;
     res.statusText = "No Content";
-    res.headers["Content-Length"] = std::to_string(res.body.size());
     return res;
 }
 
