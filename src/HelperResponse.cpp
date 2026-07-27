@@ -62,8 +62,16 @@ Response makeErrorResponse(int code, const LocationConfig& loc) {
         errorPath.pop_back();
     errorPath += "/error/" + std::to_string(code) + ".html";
 
+    /*
+    Gleiche Falle wie in serveFile: ein ifstream auf ein Verzeichnis meldet is_open() == true
+    und liest 0 Bytes. Ohne den is_regular_file-Check kaeme eine Fehlerseite mit leerem Body
+    und Content-Type: text/html raus, statt auf den Plaintext-Fallback zu fallen.
+    */
+    std::error_code ec;
+    const bool usable = std::filesystem::is_regular_file(errorPath, ec);
+
     std::ifstream file(errorPath);
-    if (file.is_open()) {
+    if (usable && file.is_open()) {
         std::stringstream ss;
         ss << file.rdbuf();
         res.body = ss.str();
