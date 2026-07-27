@@ -19,6 +19,7 @@ void runGetTest(const std::string& label, const std::string& path, const Locatio
 	Request req;
 	req.method = Method::GET;
 	req.path = path;
+	req.complete = true;
 
 	Response res = Response::build(req, loc);
 	std::cout << "=== " << label << " (path: " << path << ") ===\n";
@@ -31,6 +32,7 @@ void runPostTest(const std::string& label, const std::string& path, const std::s
 	req.method = Method::POST;
 	req.path = path;
 	req.body = body;
+	req.complete = true;
 
 	Response res = Response::build(req, loc);
 	std::cout << "=== " << label << " (path: " << path << ") ===\n";
@@ -42,6 +44,7 @@ void runDeleteTest(const std::string& label, const std::string& path, const Loca
 	Request req;
 	req.method = Method::DELETE;
 	req.path = path;
+	req.complete = true;
 
 	Response res = Response::build(req, loc);
 	std::cout << "=== " << label << " (path: " << path << ") ===\n";
