@@ -7,8 +7,8 @@
 
 class Response {
     public:
-        int statusCode;
-        std::string statusText;
+        int statusCode = 200;
+        std::string statusText = "OK";
         std::string body;
 
         std::unordered_map<std::string, std::string> headers;
