@@ -59,6 +59,21 @@ void runRedirectTest(const std::string& label, int code, const std::string& loca
 	std::cout << "-----------------------------\n" << std::endl;
 }
 
+/*
+Simuliert einen Request so, wie ihn HttpParser::parse im Fehlerfall zurueckgibt:
+errorCode gesetzt, complete bleibt false, alles andere leer.
+*/
+void runParserErrorTest(int errorCode, const LocationConfig& loc) {
+	Request req;
+	req.errorCode = errorCode;
+
+	Response res = Response::build(req, loc);
+	std::cout << "=== parser error " << errorCode << " -> "
+	          << res.statusCode << " " << res.statusText << " ===\n";
+	std::cout << res.toString() << std::endl;
+	std::cout << "-----------------------------\n" << std::endl;
+}
+
 int main() {
 	LocationConfig loc;
 	loc.root = "./www";
@@ -69,6 +84,11 @@ int main() {
 	runDeleteTest("delete existing file", "/upload_test.txt", loc);
 	runRedirectTest("permanent redirect", 301, "/new-page");
 	runRedirectTest("temporary redirect", 307, "/new-page");
+
+	// alle Codes, die HttpParser::parse ueber errorCode rausgeben kann
+	int parserCodes[] = {400, 405, 413, 414, 431, 501, 505};
+	for (int code : parserCodes)
+		runParserErrorTest(code, loc);
 }
 
 
