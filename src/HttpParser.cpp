@@ -1,9 +1,19 @@
 #include "HttpParser.hpp"
 
+#include <limits>
 #include <sstream>
 #include <stdexcept>
 
 namespace {
+
+const std::string::size_type MAX_REQUEST_LINE_SIZE = 8192;
+const std::string::size_type MAX_HEADERS_SIZE = 16384;
+
+Request errorRequest(int errorCode) {
+    Request request;
+    request.errorCode = errorCode;
+    return request;
+}
 
 std::string trim(const std::string &value) {
     std::string::size_type start = 0;
@@ -17,6 +27,17 @@ std::string trim(const std::string &value) {
     }
 
     return value.substr(start, end - start);
+}
+
+std::string toLower(const std::string &value) {
+    std::string result = value;
+    for (std::string::size_type index = 0; index < result.size(); ++index) {
+        if (result[index] >= 'A' && result[index] <= 'Z') {
+            result[index] =
+                static_cast<char>(result[index] - 'A' + 'a');
+        }
+    }
+    return result;
 }
 
 std::string::size_type parseHeaders(const std::string &rawRequest,
@@ -40,7 +61,7 @@ std::string::size_type parseHeaders(const std::string &rawRequest,
             throw std::invalid_argument("Malformed header line");
         }
 
-        const std::string name = trim(headerLine.substr(0, colon));
+        const std::string name = toLower(trim(headerLine.substr(0, colon)));
         const std::string value = trim(headerLine.substr(colon + 1));
         if (name.empty()) {
             throw std::invalid_argument("Malformed header line");
@@ -62,14 +83,24 @@ bool hasHeader(const Request &request, const std::string &name) {
 }
 
 std::string::size_type parseContentLength(const std::string &value) {
-    std::istringstream lengthStream(value);
     std::string::size_type contentLength = 0;
-    char leftover = '\0';
-
-    if (!(lengthStream >> contentLength) || (lengthStream >> leftover)) {
+    if (value.empty()) {
         throw std::invalid_argument("Invalid Content-Length header");
     }
 
+    for (std::string::size_type index = 0; index < value.size(); ++index) {
+        if (value[index] < '0' || value[index] > '9') {
+            throw std::invalid_argument("Invalid Content-Length header");
+        }
+
+        const std::string::size_type digit =
+            static_cast<std::string::size_type>(value[index] - '0');
+        if (contentLength >
+            (std::numeric_limits<std::string::size_type>::max() - digit) / 10) {
+            throw std::invalid_argument("Invalid Content-Length header");
+        }
+        contentLength = contentLength * 10 + digit;
+    }
     return contentLength;
 }
 
@@ -106,10 +137,17 @@ Method HttpParser::parseMethod(const std::string &method) const {
     return Method::UNKNOWN;
 }
 
-Request HttpParser::parse(const std::string &rawRequest) const {
+Request HttpParser::parse(const std::string &rawRequest,
+                          std::size_t maxBodySize) const {
     const std::string::size_type lineEnd = rawRequest.find("\r\n");
     if (lineEnd == std::string::npos) {
-        throw std::invalid_argument("Incomplete request line");
+        if (rawRequest.size() > MAX_REQUEST_LINE_SIZE) {
+            return errorRequest(414);
+        }
+        return Request();
+    }
+    if (lineEnd > MAX_REQUEST_LINE_SIZE) {
+        return errorRequest(414);
     }
 
     const std::string requestLine = rawRequest.substr(0, lineEnd);
@@ -121,17 +159,22 @@ Request HttpParser::parse(const std::string &rawRequest) const {
     std::string extra;
 
     if (!(stream >> methodToken >> target >> version) || (stream >> extra)) {
-        throw std::invalid_argument("Malformed request line");
+        return errorRequest(400);
     }
 
     Request request;
     request.method = parseMethod(methodToken);
     if (request.method == Method::UNKNOWN) {
-        throw std::invalid_argument("Unsupported method");
+        return errorRequest(405);
     }
 
     if (version != "HTTP/1.1") {
-        throw std::invalid_argument("Unsupported HTTP version");
+        return errorRequest(505);
+    }
+
+    if (target.empty() || target[0] != '/' ||
+        target.find('#') != std::string::npos) {
+        return errorRequest(400);
     }
 
     request.uri = target;
@@ -142,19 +185,45 @@ Request HttpParser::parse(const std::string &rawRequest) const {
     }
     request.version = version;
 
-    const std::string::size_type bodyStart = parseHeaders(rawRequest, lineEnd + 2, request);
+    const std::string::size_type headersStart = lineEnd + 2;
+    const std::string::size_type headersEnd =
+        rawRequest.find("\r\n\r\n", headersStart);
+    if (headersEnd == std::string::npos) {
+        if (rawRequest.size() - headersStart > MAX_HEADERS_SIZE) {
+            return errorRequest(431);
+        }
+        return request;
+    }
+    if (headersEnd - headersStart > MAX_HEADERS_SIZE) {
+        return errorRequest(431);
+    }
 
-    if (!hasHeader(request, "Host")) {
-        throw std::invalid_argument("Missing Host header");
+    std::string::size_type bodyStart = 0;
+    try {
+        bodyStart = parseHeaders(rawRequest, headersStart, request);
+    } catch (const std::invalid_argument &) {
+        return errorRequest(400);
+    }
+
+    if (!hasHeader(request, "host") || request.headers["host"].empty()) {
+        return errorRequest(400);
     }
 
     const std::unordered_map<std::string, std::string>::const_iterator contentLengthIt =
-        request.headers.find("Content-Length");
+        request.headers.find("content-length");
     if (contentLengthIt != request.headers.end()) {
-        const std::string::size_type contentLength = parseContentLength(contentLengthIt->second);
+        std::string::size_type contentLength = 0;
+        try {
+            contentLength = parseContentLength(contentLengthIt->second);
+        } catch (const std::invalid_argument &) {
+            return errorRequest(400);
+        }
 
-        if (rawRequest.size() < bodyStart + contentLength) {
-            throw std::invalid_argument("Incomplete body");
+        if (contentLength > maxBodySize) {
+            return errorRequest(413);
+        }
+        if (contentLength > rawRequest.size() - bodyStart) {
+            return request;
         }
 
         request.body = rawRequest.substr(bodyStart, contentLength);
