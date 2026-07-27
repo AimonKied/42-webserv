@@ -65,9 +65,18 @@ Response Response::serveFile(const std::string& filePath, const LocationConfig& 
     if (std::filesystem::exists(status) && !std::filesystem::is_regular_file(status))
         return makeErrorResponse(403, loc);
 
+    /*
+    Ein fehlgeschlagenes open() heisst nicht automatisch "gibt es nicht". status() liefert
+    not_found, wenn der Pfad wirklich fehlt, und none (mit gesetztem ec), wenn schon das
+    Durchlaufen der Elternverzeichnisse an fehlenden Rechten scheitert. Nur der erste Fall
+    ist ein 404 - alles andere ist ein Rechteproblem und damit 403, sonst verraet der Server
+    ueber den Statuscode, welche Dateien es gibt und welche nicht.
+    */
     std::ifstream file(filePath);
-    if (!file.is_open())
-        return makeErrorResponse(404, loc);
+    if (!file.is_open()) {
+        const bool notFound = (status.type() == std::filesystem::file_type::not_found);
+        return makeErrorResponse(notFound ? 404 : 403, loc);
+    }
     std::stringstream ss;
     ss << file.rdbuf();
     res.body = ss.str();
