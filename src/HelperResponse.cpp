@@ -52,6 +52,47 @@ std::string getStatusText(int code) {
     }
 }
 
+/*
+Eingebaute Fehlerseite fuer den Fall, dass keine eigene konfiguriert oder lesbar ist.
+Das Subject verlangt das ausdruecklich ("Your server must have default error pages if none
+are provided"), und eine Zeile text/plain sieht im Browser nach kaputtem Server aus.
+
+Kein Escaping noetig: code ist ein int und statusText kommt aus getStatusText, also aus
+einer festen Tabelle. Hier landet nichts, was aus einem Request stammt.
+*/
+static std::string defaultErrorPage(int code, const std::string& statusText) {
+    const std::string number = std::to_string(code);
+
+    return
+        "<!DOCTYPE html>\n"
+        "<html lang=\"en\">\n"
+        "<head>\n"
+        "<meta charset=\"utf-8\">\n"
+        "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
+        "<title>" + number + " " + statusText + "</title>\n"
+        "<style>\n"
+        "body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;"
+        "font-family:system-ui,sans-serif;background:#fafafa;color:#111}\n"
+        "main{text-align:center;padding:2rem}\n"
+        "h1{margin:0;font-size:4rem;font-weight:600;letter-spacing:-.03em}\n"
+        "p{margin:.5rem 0 0;font-size:1.125rem;color:#666}\n"
+        "hr{margin:2rem auto 0;width:4rem;border:0;border-top:1px solid #ddd}\n"
+        "small{display:block;margin-top:1rem;color:#999;font-size:.8125rem}\n"
+        "@media(prefers-color-scheme:dark){body{background:#111;color:#eee}p{color:#999}"
+        "hr{border-color:#333}small{color:#666}}\n"
+        "</style>\n"
+        "</head>\n"
+        "<body>\n"
+        "<main>\n"
+        "<h1>" + number + "</h1>\n"
+        "<p>" + statusText + "</p>\n"
+        "<hr>\n"
+        "<small>webserv</small>\n"
+        "</main>\n"
+        "</body>\n"
+        "</html>\n";
+}
+
 Response makeErrorResponse(int code, const LocationConfig& loc) {
     Response res;
     res.statusCode = code;
@@ -65,7 +106,7 @@ Response makeErrorResponse(int code, const LocationConfig& loc) {
     /*
     Gleiche Falle wie in serveFile: ein ifstream auf ein Verzeichnis meldet is_open() == true
     und liest 0 Bytes. Ohne den is_regular_file-Check kaeme eine Fehlerseite mit leerem Body
-    und Content-Type: text/html raus, statt auf den Plaintext-Fallback zu fallen.
+    raus, statt auf die eingebaute Seite zu fallen.
     */
     std::error_code ec;
     const bool usable = std::filesystem::is_regular_file(errorPath, ec);
@@ -75,11 +116,10 @@ Response makeErrorResponse(int code, const LocationConfig& loc) {
         std::stringstream ss;
         ss << file.rdbuf();
         res.body = ss.str();
-        res.headers["Content-Type"] = "text/html";
     } else {
-        res.body = std::to_string(code) + " " + res.statusText;
-        res.headers["Content-Type"] = "text/plain";
+        res.body = defaultErrorPage(code, res.statusText);
     }
+    res.headers["Content-Type"] = "text/html";
     res.headers["Content-Length"] = std::to_string(res.body.size());
     return res;
 }
