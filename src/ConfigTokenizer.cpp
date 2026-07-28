@@ -22,8 +22,7 @@ void addToken(std::vector<std::string> &tokens, std::string &current) {
     }
 }
 
-} // namespace
-
+}
 std::vector<std::string>
 ConfigTokenizer::tokenizeFile(const std::string &path) const {
     std::ifstream file(path);

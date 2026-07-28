@@ -2,7 +2,7 @@
 
 namespace webserv {
 
-} // namespace webserv
+}
 
 std::string build_response_HARDCODED(int client_fd) {
 	
