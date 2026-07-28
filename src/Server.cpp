@@ -1,5 +1,6 @@
 #include "Server.hpp"
 #include "HttpParser.hpp"
+#include "ConfigTypes.hpp"
 
 #include <cerrno>
 
@@ -183,6 +184,29 @@ int Server::acceptClient()
 	_fds.push_back({clientFd, POLLIN, 0});
 	_clients.emplace(clientFd, Client(clientFd));
 	return 0;
+}
+
+/* Hardcoded Configfile-Filler, bis Configfile-Parser fertig ist */
+Config hardcodedConfig()
+{
+	LocationConfig root;
+	root.path = "/";
+	root.root = "./www";
+	root.index = "index.html";
+	root.methods.push_back(Method::GET);
+	root.methods.push_back(Method::POST);
+	root.methods.push_back(Method::DELETE);
+
+	ServerConfig server;
+	server.host = "0.0.0.0";
+	server.port = 8080;
+	server.serverName = "localhost";
+	server.clientMaxBodySize = 1024 * 1024;
+	server.locations.push_back(root);
+
+	Config config;
+	config.push_back(server);
+	return config;
 }
 
 int Server::handleClientRead(size_t& i)
