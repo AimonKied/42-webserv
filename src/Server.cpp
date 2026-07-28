@@ -232,7 +232,6 @@ int Server::handleClientRead(size_t& i)
 		}
 		return -1;
 	}
-
 	// Entfernen, nach dem Configfile-Parser fertig ist
 	const Config config = hardcodedConfig();
 	const ServerConfig& serverConfig = config[0];
@@ -246,7 +245,7 @@ int Server::handleClientRead(size_t& i)
 	}
 
 	client.state = ClientState::Writing;
-	client.writeBuffer = buildResponse(client.fd);
+	client.writeBuffer = buildResponse(request, serverConfig.locations[0]);
 	client.readBuffer.clear();
 	_fds[i].events = POLLOUT;
 	return 0;
@@ -294,16 +293,9 @@ void Server::closeAllFds()
 	_serverFd = -1;
 }
 
-std::string Server::buildResponse(int clientFd) const // remove this and replace with Simons
+std::string Server::buildResponse(const Request& request, const LocationConfig& location) const
 {
-	(void)clientFd;
-
-	std::string body = "Hello there budster!\n";
-	return "HTTP/1.1 200 OK\r\n"
-		"Content-Type: text/plain\r\n"
-		"Content-Length: " + std::to_string(body.size()) + "\r\n"
-		"\r\n" +
-		body;
+	return Response::build(request, location).toString();
 }
 
 int Server::setNonBlocking(int fd)

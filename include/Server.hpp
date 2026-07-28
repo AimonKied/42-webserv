@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Client.hpp"
+#include "ConfigTypes.hpp"
+#include "HttpRequest.hpp"
+#include "HttpResponse.hpp"
 
 #include <arpa/inet.h>
 #include <csignal>
@@ -39,7 +42,7 @@ private:
 	int setNonBlocking(int fd);
 	void checkClientTimeouts();
 
-	std::string buildResponse(int clientFd) const;
+	std::string buildResponse(const Request& request, const LocationConfig& location) const;
 
 	static volatile std::sig_atomic_t _signalReceived;
 
