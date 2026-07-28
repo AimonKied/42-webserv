@@ -1,0 +1,11 @@
+docs/en.subject.pdf
+
+# build artifacts
+obj/
+webserv
+
+# test artifacts
+www/upload_test.txt
+
+# personal notes
+RESPONSE_PLAN.md
