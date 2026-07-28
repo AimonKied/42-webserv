@@ -4,6 +4,8 @@
 #include <filesystem>
 #include <string>
 #include <cctype>
+#include <cstdint>
+#include <stdexcept>
 
 Response makeErrorResponse(int code, const LocationConfig& loc);
 std::string getStatusText(int code);
@@ -103,14 +105,41 @@ Response Response::serveFile(const std::string& filePath, const LocationConfig& 
     ist ein 404 - alles andere ist ein Rechteproblem und damit 403, sonst verraet der Server
     ueber den Statuscode, welche Dateien es gibt und welche nicht.
     */
-    std::ifstream file(filePath);
+    std::ifstream file(filePath, std::ios::binary);
     if (!file.is_open()) {
         const bool notFound = (status.type() == std::filesystem::file_type::not_found);
         return makeErrorResponse(notFound ? 404 : 403, loc);
     }
-    std::stringstream ss;
-    ss << file.rdbuf();
-    res.body = ss.str();
+
+    /*
+    Vorher lief das ueber einen stringstream: erst rdbuf() reinschieben, dann .str()
+    rauskopieren. Das sind zwei Puffer zusaetzlich zum Body, also die dreifache Dateigroesse
+    im Speicher - bei einer 144-MB-Datei gemessene 433 MB. Mit file_size vorab wird der Body
+    genau einmal alloziert und direkt befuellt.
+
+    Das catch ist keine Vorsicht, sondern Pflicht: laut Subject gilt ein Absturz - ausdruecklich
+    auch bei Speichermangel - als nicht funktionsfaehiges Projekt. Ohne catch fliegt bad_alloc
+    ungefangen bis aus main raus und der Prozess terminiert mit SIGABRT.
+    */
+    const std::uintmax_t fileSize = std::filesystem::file_size(filePath, ec);
+    if (ec)
+        return makeErrorResponse(500, loc);
+
+    try {
+        res.body.resize(static_cast<size_t>(fileSize));
+    } catch (const std::exception&) {
+        return makeErrorResponse(500, loc);
+    }
+
+    if (fileSize > 0) {
+        file.read(&res.body[0], static_cast<std::streamsize>(fileSize));
+        if (file.bad())
+            return makeErrorResponse(500, loc);
+        // Datei kann zwischen file_size und read geschrumpft sein - auf das kuerzen,
+        // was wirklich gelesen wurde, sonst haengen Nullbytes hinten dran.
+        res.body.resize(static_cast<size_t>(file.gcount()));
+    }
+
     res.statusCode = 200;
     res.headers["Content-Type"] = getMimeType(filePath);
     res.statusText = "OK";
