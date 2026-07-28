@@ -39,6 +39,36 @@ static bool isPathInsideRoot(const std::string& fullPath, const std::string& roo
     return true;
 }
 
+/*
+Uebersetzt einen URL-Pfad in einen Pfad auf der Platte und prueft, dass der das Basis-
+verzeichnis nicht verlaesst. Alles, was spaeter an dieser Umwandlung dazukommt (Location-
+Prefix abschneiden bei root/alias, evtl. Percent-Decoding falls es doch nicht im Parser
+landet), gehoert hier rein - und zwar VOR den isPathInsideRoot-Check. Der muss der letzte
+Schritt bleiben, sonst wird ein anderer Pfad geprueft als spaeter geoeffnet wird.
+
+baseDir statt LocationConfig als Parameter, damit buildPost spaeter uploadStore
+uebergeben kann, ohne dass diese Funktion die Methode kennen muss.
+*/
+struct ResolvedPath {
+    std::string path;
+    int errorCode = 0;      // 0 = ok
+};
+
+static ResolvedPath resolvePath(const std::string& urlPath, const std::string& baseDir) {
+    ResolvedPath result;
+
+    result.path = baseDir;
+    if (!result.path.empty() && result.path.back() == '/')
+        result.path.pop_back();
+    result.path += urlPath;
+
+    if (!isPathInsideRoot(result.path, baseDir)) {
+        result.path.clear();
+        result.errorCode = 403;
+    }
+    return result;
+}
+
 std::string Response::toString() const {
     std::string result;
 
@@ -145,14 +175,11 @@ Response Response::build(const Request& req, const LocationConfig& loc) {
 }
 
 Response Response::buildGet(const Request& req, const LocationConfig& loc) {
-    std::string fullPath = loc.root;
-    if (!fullPath.empty() && fullPath.back() == '/')
-        fullPath.pop_back();
-    fullPath += req.path;
+    ResolvedPath target = resolvePath(req.path, loc.root);
+    if (target.errorCode != 0)
+        return makeErrorResponse(target.errorCode, loc);
 
-    if (!isPathInsideRoot(fullPath, loc.root))
-        return makeErrorResponse(403, loc);
-
+    std::string fullPath = target.path;
     std::error_code ec;
     if (std::filesystem::is_directory(fullPath, ec)) {
         if (req.path.empty() || req.path.back() != '/') {
@@ -169,14 +196,12 @@ Response Response::buildGet(const Request& req, const LocationConfig& loc) {
 Response Response::buildPost(const Request& req, const LocationConfig& loc) {
     if (!req.path.empty() && req.path.back() == '/')
         return makeErrorResponse(400, loc);
-    std::string fullPath = loc.root;
-    if (!fullPath.empty() && fullPath.back() == '/')
-        fullPath.pop_back();
-    fullPath += req.path;
 
-    if (!isPathInsideRoot(fullPath, loc.root))
-        return makeErrorResponse(403, loc);
+    ResolvedPath target = resolvePath(req.path, loc.root);
+    if (target.errorCode != 0)
+        return makeErrorResponse(target.errorCode, loc);
 
+    const std::string& fullPath = target.path;
     std::error_code ec;
     bool existed = std::filesystem::exists(fullPath, ec);
     std::ofstream outFile(fullPath, std::ios::binary);
@@ -196,14 +221,12 @@ Response Response::buildPost(const Request& req, const LocationConfig& loc) {
 Response Response::buildDelete(const Request& req, const LocationConfig& loc) {
     if (!req.path.empty() && req.path.back() == '/')
         return makeErrorResponse(400, loc);
-    std::string fullPath = loc.root;
-    if (!fullPath.empty() && fullPath.back() == '/')
-        fullPath.pop_back();
-    fullPath += req.path;
 
-    if (!isPathInsideRoot(fullPath, loc.root))
-        return makeErrorResponse(403, loc);
+    ResolvedPath target = resolvePath(req.path, loc.root);
+    if (target.errorCode != 0)
+        return makeErrorResponse(target.errorCode, loc);
 
+    const std::string& fullPath = target.path;
     std::error_code ec;
     bool existed = std::filesystem::exists(fullPath, ec);
     if (!existed)
