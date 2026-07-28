@@ -233,8 +233,11 @@ int Server::handleClientRead(size_t& i)
 		return -1;
 	}
 
+	// Entfernen, nach dem Configfile-Parser fertig ist
+	const Config config = hardcodedConfig();
+	const ServerConfig& serverConfig = config[0];
 	HttpParser parser;
-	Request request = parser.parse(client.readBuffer, client.MAX_REQUEST_SIZE);
+	Request request = parser.parse(client.readBuffer, serverConfig.clientMaxBodySize);
 
 	if (!request.complete && request.errorCode == 0)
 	{
