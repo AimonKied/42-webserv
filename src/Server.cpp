@@ -236,7 +236,7 @@ int Server::handleClientRead(size_t& i)
 	HttpParser parser;
 	Request request = parser.parse(client.readBuffer, client.MAX_REQUEST_SIZE);
 
-	if (!request.complete)
+	if (!request.complete && request.errorCode == 0)
 	{
 		std::cout << "Incomplete request. Continuing..." << std::endl;
 		return 0;
