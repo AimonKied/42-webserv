@@ -1,4 +1,5 @@
 #include "Server.hpp"
+#include "HttpParser.hpp"
 
 #include <cerrno>
 
@@ -207,25 +208,20 @@ int Server::handleClientRead(size_t& i)
 		}
 		return -1;
 	}
-	if (requestComplete(client.readBuffer))
+
+	HttpParser parser;
+	Request request = parser.parse(client.readBuffer, client.MAX_REQUEST_SIZE);
+
+	if (!request.complete)
 	{
-		client.state = ClientState::Writing;
-		client.writeBuffer = buildResponse(client.fd);
-		client.readBuffer.clear();
-		_fds[i].events = POLLOUT;
+		std::cout << "Incomplete request. Continuing..." << std::endl;
 		return 0;
 	}
-	std::cout << "Incomplete request. Continuing..." << std::endl;
-	for (char c : client.readBuffer)
-	{
-		if (c == '\r')
-			std::cout << "\\r";
-		else if (c == '\n')
-			std::cout << "\\n";
-		else
-			std::cout << c;
-	}
-	std::cout << std::endl;
+
+	client.state = ClientState::Writing;
+	client.writeBuffer = buildResponse(client.fd);
+	client.readBuffer.clear();
+	_fds[i].events = POLLOUT;
 	return 0;
 }
 
@@ -271,13 +267,7 @@ void Server::closeAllFds()
 	_serverFd = -1;
 }
 
-bool Server::requestComplete(const std::string& buffer) const
-{
-	return buffer.find("\r\n\r\n") != std::string::npos
-		|| buffer.find("\n\n") != std::string::npos;
-}
-
-std::string Server::buildResponse(int clientFd) const
+std::string Server::buildResponse(int clientFd) const // remove this and replace with Simons
 {
 	(void)clientFd;
 
@@ -324,4 +314,3 @@ void Server::checkClientTimeouts()
 }
 
 } // namespace webserv
-

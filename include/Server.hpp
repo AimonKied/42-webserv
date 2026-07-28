@@ -39,7 +39,6 @@ private:
 	int setNonBlocking(int fd);
 	void checkClientTimeouts();
 
-	bool requestComplete(const std::string& buffer) const;
 	std::string buildResponse(int clientFd) const;
 
 	static volatile std::sig_atomic_t _signalReceived;
