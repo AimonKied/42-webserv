@@ -8,6 +8,7 @@
 #include <stdexcept>
 
 Response makeErrorResponse(int code, const LocationConfig& loc);
+Response buildDirectoryListing(const std::string& fullPath, const std::string& urlPath, const LocationConfig& loc);
 std::string getStatusText(int code);
 
 /*
@@ -217,7 +218,12 @@ Response Response::buildGet(const Request& req, const LocationConfig& loc) {
                 location += "?" + req.query;
             return buildRedirect(301, location);
         }
-        fullPath += loc.index;
+        std::string indexPath = fullPath + loc.index;
+        if (std::filesystem::is_regular_file(indexPath, ec))
+            return serveFile(indexPath, loc);
+        if (loc.autoindex)
+            return buildDirectoryListing(fullPath, req.path, loc);
+        return makeErrorResponse(403, loc);
     }
     return serveFile(fullPath, loc);
 }
