@@ -65,7 +65,10 @@ Response buildDirectoryListing(const std::string& fullPath, const std::string& u
     res.body = "<html><head><title>Index of " + urlPath + "</title></head><body><h1>Index of " + urlPath + "</h1><ul>";
     for (const auto& entry : it) {
         std::string name = entry.path().filename().string();
-        if (entry.is_directory()) {
+        bool isDir = entry.is_directory(ec);
+        if (ec)
+            continue;
+        if (isDir) {
             res.body += "<li><a href=\"" + urlPath + urlEncode(name) + "/\">" + escapeHtml(name) + "/</a></li>";
         } else {
             res.body += "<li><a href=\"" + urlPath + urlEncode(name) + "\">" + escapeHtml(name) + "</a></li>";
