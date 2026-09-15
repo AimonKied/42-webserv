@@ -269,8 +269,14 @@ Response Response::buildDelete(const Request& req, const LocationConfig& loc) {
     if (std::filesystem::is_directory(fullPath, ec))
         return makeErrorResponse(403, loc);
     std::filesystem::remove(fullPath, ec);
-    if (ec)
-        return makeErrorResponse(500, loc);
+    if (ec) {
+        int errorCode;
+        if (ec == std::errc::permission_denied)
+            errorCode = 403;
+        else
+            errorCode = 500;
+        return makeErrorResponse(errorCode, loc);
+    }
     /*
     Bewusst ohne Content-Length: RFC 7230 verbietet den Header bei 204, weil die Antwort
     per Definition keinen Body haben kann. Ein "Content-Length: 0" ist zwar harmlos, aber
