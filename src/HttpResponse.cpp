@@ -6,6 +6,7 @@
 #include <cctype>
 #include <cstdint>
 #include <stdexcept>
+#include <ctime>
 
 Response makeErrorResponse(int code, const LocationConfig& loc);
 Response buildDirectoryListing(const std::string& fullPath, const std::string& urlPath, const LocationConfig& loc);
@@ -72,6 +73,22 @@ static ResolvedPath resolvePath(const std::string& urlPath, const std::string& b
     return result;
 }
 
+/*
+RFC 7231 verlangt den Date-Header in jeder Antwort ausser 1xx/5xx ("An origin server MUST
+send a Date header field in all other cases").
+
+Das literale "GMT" statt %Z im Format-String ist Absicht: %Z gibt den Zeitzonennamen der
+Plattform aus, HTTP-date schreibt aber genau "GMT" vor. Tag- und Monatsnamen muessen
+englisch sein - das passt, solange niemand setlocale aufruft, weil dann die C-Locale gilt.
+*/
+static std::string httpDate() {
+    std::time_t now = std::time(nullptr);
+    char buffer[64];
+
+    std::strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S GMT", std::gmtime(&now));
+    return buffer;
+}
+
 std::string Response::toString() const {
     std::string result;
 
@@ -79,6 +96,13 @@ std::string Response::toString() const {
     for (const auto& header : headers) {
         result += header.first + ": " + header.second + "\r\n";
     }
+    result += "Date: " + httpDate() + "\r\n";
+    /*
+    Der Server schliesst die Verbindung nach jeder Antwort (cleanupClient im Server-Loop).
+    HTTP/1.1 geht ohne diesen Header vom Gegenteil aus, der Client wuerde also versuchen,
+    eine laengst geschlossene Verbindung wiederzuverwenden.
+    */
+    result += "Connection: close\r\n";
     result += "\r\n" + body;
     return result;
 };
