@@ -238,13 +238,23 @@ Response Response::buildPost(const Request& req, const LocationConfig& loc) {
 
     const std::string& fullPath = target.path;
     std::error_code ec;
+
+    if (std::filesystem::is_directory(fullPath, ec))
+        return makeErrorResponse(403, loc);
+    if (!std::filesystem::is_directory(std::filesystem::path(fullPath).parent_path(), ec))
+        return makeErrorResponse(404, loc);
+
     bool existed = std::filesystem::exists(fullPath, ec);
     std::ofstream outFile(fullPath, std::ios::binary);
+    // Elternverzeichnis existiert und Ziel ist kein Verzeichnis -> 403.
     if (!outFile.is_open())
-        return makeErrorResponse(500, loc);
+        return makeErrorResponse(403, loc);
 
     outFile << req.body;
     outFile.close();
+    if (outFile.fail())
+        return makeErrorResponse(500, loc);
+
     Response res;
     res.statusCode = existed ? 200 : 201;
     res.statusText = existed ? "OK" : "Created";
@@ -277,11 +287,6 @@ Response Response::buildDelete(const Request& req, const LocationConfig& loc) {
             errorCode = 500;
         return makeErrorResponse(errorCode, loc);
     }
-    /*
-    Bewusst ohne Content-Length: RFC 7230 verbietet den Header bei 204, weil die Antwort
-    per Definition keinen Body haben kann. Ein "Content-Length: 0" ist zwar harmlos, aber
-    manche Clients werten den Widerspruch als Framing-Fehler.
-    */
     Response res;
     res.statusCode = 204;
     res.statusText = "No Content";
