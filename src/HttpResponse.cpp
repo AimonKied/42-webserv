@@ -73,14 +73,6 @@ static ResolvedPath resolvePath(const std::string& urlPath, const std::string& b
     return result;
 }
 
-/*
-RFC 7231 verlangt den Date-Header in jeder Antwort ausser 1xx/5xx ("An origin server MUST
-send a Date header field in all other cases").
-
-Das literale "GMT" statt %Z im Format-String ist Absicht: %Z gibt den Zeitzonennamen der
-Plattform aus, HTTP-date schreibt aber genau "GMT" vor. Tag- und Monatsnamen muessen
-englisch sein - das passt, solange niemand setlocale aufruft, weil dann die C-Locale gilt.
-*/
 static std::string httpDate() {
     std::time_t now = std::time(nullptr);
     char buffer[64];
@@ -97,11 +89,6 @@ std::string Response::toString() const {
         result += header.first + ": " + header.second + "\r\n";
     }
     result += "Date: " + httpDate() + "\r\n";
-    /*
-    Der Server schliesst die Verbindung nach jeder Antwort (cleanupClient im Server-Loop).
-    HTTP/1.1 geht ohne diesen Header vom Gegenteil aus, der Client wuerde also versuchen,
-    eine laengst geschlossene Verbindung wiederzuverwenden.
-    */
     result += "Connection: close\r\n";
     result += "\r\n" + body;
     return result;
@@ -185,12 +172,12 @@ std::string Response::getMimeType(const std::string& filePath) {
     for (char& c : ext)
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
-    if (ext == ".html") return "text/html";
-    else if (ext == ".css") return "text/css";
-    else if (ext == ".js") return "application/javascript";
+    if (ext == ".html") return "text/html; charset=utf-8";
+    else if (ext == ".css") return "text/css; charset=utf-8";
+    else if (ext == ".js") return "application/javascript; charset=utf-8";
     else if (ext == ".png") return "image/png";
     else if (ext == ".jpg") return "image/jpeg";
-    else if (ext == ".txt") return "text/plain";
+    else if (ext == ".txt") return "text/plain; charset=utf-8";
     else if (ext == ".gif") return "image/gif";
     else if (ext == ".svg") return "image/svg+xml";
     else if (ext == ".ico") return "image/x-icon";

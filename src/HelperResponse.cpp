@@ -119,7 +119,7 @@ Response makeErrorResponse(int code, const LocationConfig& loc) {
     } else {
         res.body = defaultErrorPage(code, res.statusText);
     }
-    res.headers["Content-Type"] = "text/html";
+    res.headers["Content-Type"] = "text/html; charset=utf-8";
     res.headers["Content-Length"] = std::to_string(res.body.size());
     return res;
 }

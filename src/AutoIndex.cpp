@@ -75,7 +75,7 @@ Response buildDirectoryListing(const std::string& fullPath, const std::string& u
         }
     }
     res.body += "</ul></body></html>";
-    res.headers["Content-Type"] = "text/html";
+    res.headers["Content-Type"] = "text/html; charset=utf-8";
     res.headers["Content-Length"] = std::to_string(res.body.size());
     return res;
 }
