@@ -6,8 +6,10 @@
 #include <cctype>
 #include <cstdint>
 #include <stdexcept>
+#include <ctime>
 
 Response makeErrorResponse(int code, const LocationConfig& loc);
+Response buildDirectoryListing(const std::string& fullPath, const std::string& urlPath, const LocationConfig& loc);
 std::string getStatusText(int code);
 
 /*
@@ -71,6 +73,14 @@ static ResolvedPath resolvePath(const std::string& urlPath, const std::string& b
     return result;
 }
 
+static std::string httpDate() {
+    std::time_t now = std::time(nullptr);
+    char buffer[64];
+
+    std::strftime(buffer, sizeof(buffer), "%a, %d %b %Y %H:%M:%S GMT", std::gmtime(&now));
+    return buffer;
+}
+
 std::string Response::toString() const {
     std::string result;
 
@@ -78,6 +88,8 @@ std::string Response::toString() const {
     for (const auto& header : headers) {
         result += header.first + ": " + header.second + "\r\n";
     }
+    result += "Date: " + httpDate() + "\r\n";
+    result += "Connection: close\r\n";
     result += "\r\n" + body;
     return result;
 };
@@ -160,12 +172,12 @@ std::string Response::getMimeType(const std::string& filePath) {
     for (char& c : ext)
         c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
-    if (ext == ".html") return "text/html";
-    else if (ext == ".css") return "text/css";
-    else if (ext == ".js") return "application/javascript";
+    if (ext == ".html") return "text/html; charset=utf-8";
+    else if (ext == ".css") return "text/css; charset=utf-8";
+    else if (ext == ".js") return "application/javascript; charset=utf-8";
     else if (ext == ".png") return "image/png";
     else if (ext == ".jpg") return "image/jpeg";
-    else if (ext == ".txt") return "text/plain";
+    else if (ext == ".txt") return "text/plain; charset=utf-8";
     else if (ext == ".gif") return "image/gif";
     else if (ext == ".svg") return "image/svg+xml";
     else if (ext == ".ico") return "image/x-icon";
@@ -217,7 +229,12 @@ Response Response::buildGet(const Request& req, const LocationConfig& loc) {
                 location += "?" + req.query;
             return buildRedirect(301, location);
         }
-        fullPath += loc.index;
+        std::string indexPath = fullPath + loc.index;
+        if (std::filesystem::is_regular_file(indexPath, ec))
+            return serveFile(indexPath, loc);
+        if (loc.autoindex)
+            return buildDirectoryListing(fullPath, req.path, loc);
+        return makeErrorResponse(403, loc);
     }
     return serveFile(fullPath, loc);
 }
@@ -232,13 +249,23 @@ Response Response::buildPost(const Request& req, const LocationConfig& loc) {
 
     const std::string& fullPath = target.path;
     std::error_code ec;
+
+    if (std::filesystem::is_directory(fullPath, ec))
+        return makeErrorResponse(403, loc);
+    if (!std::filesystem::is_directory(std::filesystem::path(fullPath).parent_path(), ec))
+        return makeErrorResponse(404, loc);
+
     bool existed = std::filesystem::exists(fullPath, ec);
     std::ofstream outFile(fullPath, std::ios::binary);
+    // Elternverzeichnis existiert und Ziel ist kein Verzeichnis -> 403.
     if (!outFile.is_open())
-        return makeErrorResponse(500, loc);
+        return makeErrorResponse(403, loc);
 
     outFile << req.body;
     outFile.close();
+    if (outFile.fail())
+        return makeErrorResponse(500, loc);
+
     Response res;
     res.statusCode = existed ? 200 : 201;
     res.statusText = existed ? "OK" : "Created";
@@ -263,13 +290,14 @@ Response Response::buildDelete(const Request& req, const LocationConfig& loc) {
     if (std::filesystem::is_directory(fullPath, ec))
         return makeErrorResponse(403, loc);
     std::filesystem::remove(fullPath, ec);
-    if (ec)
-        return makeErrorResponse(500, loc);
-    /*
-    Bewusst ohne Content-Length: RFC 7230 verbietet den Header bei 204, weil die Antwort
-    per Definition keinen Body haben kann. Ein "Content-Length: 0" ist zwar harmlos, aber
-    manche Clients werten den Widerspruch als Framing-Fehler.
-    */
+    if (ec) {
+        int errorCode;
+        if (ec == std::errc::permission_denied)
+            errorCode = 403;
+        else
+            errorCode = 500;
+        return makeErrorResponse(errorCode, loc);
+    }
     Response res;
     res.statusCode = 204;
     res.statusText = "No Content";
