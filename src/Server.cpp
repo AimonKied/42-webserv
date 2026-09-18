@@ -47,9 +47,9 @@ int Server::run()
 			return 1;
 		}
 
+		checkClientTimeouts();
 		for (size_t i = 0; i < _fds.size(); ++i)
 		{
-			checkClientTimeouts();
 			int fd = _fds[i].fd;
 			short revents = _fds[i].revents;
 
@@ -317,7 +317,6 @@ void Server::checkClientTimeouts()
 		{
 			std::cout << "Client at fd: " << fd << " timed out" << std::endl;
 			cleanupClient(i);
-			--i;
 		}
 	}
 
