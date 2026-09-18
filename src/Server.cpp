@@ -77,7 +77,7 @@ int Server::run()
 				{
 					if (acceptClient() < 0)
 					{
-						closeAllFds();
+						perror("acceptClient() failed");
 						return 1;
 					}
 				}
@@ -120,14 +120,19 @@ int Server::setupSignalHandlers()
 int Server::createListeningSocket()
 {
 	_serverFd = socket(AF_INET, SOCK_STREAM, 0);
-	setNonBlocking(_serverFd);
 	if (_serverFd == -1)
 	{
 		std::cerr << "socket() failed\n";
 		return -1;
 	}
 	std::cout << "Socket created: fd " << _serverFd << std::endl;
-
+	if (setNonBlocking(_serverFd) == -1)
+	{
+		std::cerr << "setNonBlocking() failed\n";
+		close(_serverFd);
+		_serverFd = -1;
+		return -1;
+	}
 	int opt = 1;
 	if (setsockopt(_serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
 	{
@@ -169,16 +174,20 @@ int Server::acceptClient()
 	std::cout << "New connection is pending" << std::endl;
 
 	int clientFd = accept(_serverFd, NULL, NULL);
-	setNonBlocking(clientFd);
 	if (clientFd == -1)
 	{
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return 0; // fake news from poll client not ready
+			return 1; // fake news from poll client not ready
 		std::cerr << "accept() failed\n";
-		return -1;
+		return 1;
 	}
 	std::cout << "Client connected: fd " << clientFd << std::endl;
-
+	if (setNonBlocking(clientFd) == -1)
+	{
+		std::cerr << "setNonBlocking() failed\n";
+		close(clientFd);
+		return 1;
+	}
 	_fds.push_back({clientFd, POLLIN, 0});
 	_clients.emplace(clientFd, Client(clientFd));
 	return 0;
