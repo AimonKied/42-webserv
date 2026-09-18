@@ -114,6 +114,11 @@ int Server::setupSignalHandlers()
 		std::cerr << "failed to install SIGTERM handler\n";
 		return -1;
 	}
+	if (std::signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+	{
+		std::cerr << "failed to install SIGPIPE handler\n";
+		return -1;
+	}
 	return 0;
 }
 
