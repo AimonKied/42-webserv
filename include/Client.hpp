@@ -17,13 +17,14 @@ enum class ClientState {
 
 class Client {
 public:
-	explicit Client(int fd);
+	explicit Client(int fd, int listenerFd);
 
 	ssize_t receive();
 	ssize_t sendChunk();
 	size_t MAX_REQUEST_SIZE = 1024 * 1024; // 1mb
 
 	int fd;
+	int listenerFd;
 	std::string readBuffer;
 	std::string writeBuffer;
 	ClientState state;

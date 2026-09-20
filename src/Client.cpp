@@ -2,8 +2,8 @@
 
 namespace webserv {
 
-Client::Client(int fd)
-	: fd(fd), readBuffer(""), writeBuffer(""), state(ClientState::Reading), lastActivity(std::time(nullptr))
+Client::Client(int fd, int listenerFd)
+	: fd(fd), listenerFd(listenerFd), readBuffer(""), writeBuffer(""), state(ClientState::Reading), lastActivity(std::time(nullptr))
 {
 }
 

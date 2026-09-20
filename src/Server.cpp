@@ -196,7 +196,7 @@ int Server::acceptClient(int listenerFd)
 		return 1;
 	}
 	_fds.push_back({clientFd, POLLIN, 0});
-	_clients.emplace(clientFd, Client(clientFd));
+	_clients.emplace(clientFd, Client(clientFd, listenerFd));
 	return 0;
 }
 
