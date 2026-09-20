@@ -30,8 +30,8 @@ private:
 	static void handleSignal(int signal);
 
 	int setupSignalHandlers();
-	int createListeningSocket();
-	int acceptClient();
+	int createListeningSocket(int port);
+	int acceptClient(int listenerFd);
 	int handleClientRead(size_t& i);
 	int handleClientWrite(size_t& i);
 	void cleanupClient(size_t& i);

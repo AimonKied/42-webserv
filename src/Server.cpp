@@ -22,7 +22,7 @@ int Server::run()
 	_signalReceived = 0;
 	if (setupSignalHandlers() < 0)
 		return 1;
-	if (createListeningSocket() < 0)
+	if (createListeningSocket(_port) < 0)
 	{
 		closeAllFds();
 		return 1;
@@ -75,7 +75,7 @@ int Server::run()
 			{
 				if (fd == _serverFd)
 				{
-					if (acceptClient() < 0)
+					if (acceptClient(fd) < 0)
 					{
 						perror("acceptClient() failed");
 						return 1;
@@ -122,7 +122,7 @@ int Server::setupSignalHandlers()
 	return 0;
 }
 
-int Server::createListeningSocket()
+int Server::createListeningSocket(int port)
 {
 	_serverFd = socket(AF_INET, SOCK_STREAM, 0);
 	if (_serverFd == -1)
@@ -150,7 +150,7 @@ int Server::createListeningSocket()
 	sockaddr_in address = {};
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(_port);
+	address.sin_port = htons(port);
 
 	if (bind(_serverFd, (sockaddr *)&address, sizeof(address)) == -1)
 	{
@@ -170,15 +170,15 @@ int Server::createListeningSocket()
 	}
 
 	_fds.push_back({_serverFd, POLLIN, 0});
-	std::cout << "Listening on http://localhost:" << _port << " ye yeeeee" << std::endl;
+	std::cout << "Listening on http://localhost:" << port << " ye yeeeee" << std::endl;
 	return 0;
 }
 
-int Server::acceptClient()
+int Server::acceptClient(int listenerFd)
 {
 	std::cout << "New connection is pending" << std::endl;
 
-	int clientFd = accept(_serverFd, NULL, NULL);
+	int clientFd = accept(listenerFd, NULL, NULL);
 	if (clientFd == -1)
 	{
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
