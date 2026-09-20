@@ -96,6 +96,11 @@ int Server::run()
 	return 0;
 }
 
+bool Server::isListener(int fd) const
+{
+	return _listeners.find(fd) != _listeners.end();
+}
+
 void Server::handleSignal(int signal)
 {
 	(void)signal;

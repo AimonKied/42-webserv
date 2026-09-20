@@ -29,6 +29,8 @@ private:
 
 	static void handleSignal(int signal);
 
+	std::map<int, int> _listeners;
+	bool isListener(int fd) const;
 	int setupSignalHandlers();
 	int createListeningSocket(int port);
 	int acceptClient(int listenerFd);
