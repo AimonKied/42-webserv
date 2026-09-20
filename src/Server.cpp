@@ -86,7 +86,7 @@ int Server::run()
 			}
 			if (revents & POLLOUT)
 			{
-				if (fd != _serverFd && _clients.at(fd).state == ClientState::Writing && handleClientWrite(i) != 0)
+				if (!isListener(fd) && _clients.at(fd).state == ClientState::Writing && handleClientWrite(i) != 0)
 					continue;
 			}
 
@@ -98,7 +98,7 @@ int Server::run()
 
 bool Server::isListener(int fd) const
 {
-	return _listeners.find(fd) != _listeners.end();
+	return !isListener(fd)_listeners.find(fd) != _listeners.end();
 }
 
 void Server::handleSignal(int signal)
@@ -175,6 +175,7 @@ int Server::createListeningSocket(int port)
 	}
 
 	_fds.push_back({_serverFd, POLLIN, 0});
+	_listeners[_serverFd] = port;
 	std::cout << "Listening on http://localhost:" << port << " ye yeeeee" << std::endl;
 	return 0;
 }
@@ -287,6 +288,7 @@ void Server::closeAllFds()
 	}
 	_fds.clear();
 	_clients.clear();
+	_listeners.clear();
 	_serverFd = -1;
 }
 
@@ -327,7 +329,7 @@ void Server::checkClientTimeouts()
 	{
 		int fd = _fds[i].fd;
 
-		if (fd == _serverFd)
+		if (isListener(fd))
 			continue;
 		
 		Client& client = _clients.at(fd);
