@@ -7,7 +7,7 @@ namespace webserv {
 volatile std::sig_atomic_t Server::_signalReceived = 0;
 
 Server::Server(int port)
-	: _running(false), _port(port), _serverFd(-1), _fds(), _clients()
+	: _running(false), _port(port), _fds(), _clients()
 {
 }
 
@@ -57,7 +57,7 @@ int Server::run()
 				continue;
 			if (revents & (POLLERR | POLLHUP | POLLNVAL))
 			{
-				if (fd == _serverFd)
+				if (isListener(fd))
 				{
 					std::cerr << "Fatal error on listening socket\n";
 					closeAllFds();
@@ -73,7 +73,7 @@ int Server::run()
 			}
 			if (revents & POLLIN)
 			{
-				if (fd == _serverFd)
+				if (isListener(fd))
 				{
 					if (acceptClient(fd) < 0)
 					{
@@ -98,7 +98,7 @@ int Server::run()
 
 bool Server::isListener(int fd) const
 {
-	return !isListener(fd)_listeners.find(fd) != _listeners.end();
+	return _listeners.find(fd) != _listeners.end();
 }
 
 void Server::handleSignal(int signal)
@@ -129,26 +129,24 @@ int Server::setupSignalHandlers()
 
 int Server::createListeningSocket(int port)
 {
-	_serverFd = socket(AF_INET, SOCK_STREAM, 0);
-	if (_serverFd == -1)
+	int listenerFd = socket(AF_INET, SOCK_STREAM, 0);
+	if (listenerFd == -1)
 	{
 		std::cerr << "socket() failed\n";
 		return -1;
 	}
-	std::cout << "Socket created: fd " << _serverFd << std::endl;
-	if (setNonBlocking(_serverFd) == -1)
+	std::cout << "Socket created: fd " << listenerFd << std::endl;
+	if (setNonBlocking(listenerFd) == -1)
 	{
 		std::cerr << "setNonBlocking() failed\n";
-		close(_serverFd);
-		_serverFd = -1;
+		close(listenerFd);
 		return -1;
 	}
 	int opt = 1;
-	if (setsockopt(_serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
+	if (setsockopt(listenerFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
 	{
 		std::cerr << "setsockopt() failed\n";
-		close(_serverFd);
-		_serverFd = -1;
+		close(listenerFd);
 		return -1;
 	}
 
@@ -157,25 +155,23 @@ int Server::createListeningSocket(int port)
 	address.sin_addr.s_addr = INADDR_ANY;
 	address.sin_port = htons(port);
 
-	if (bind(_serverFd, (sockaddr *)&address, sizeof(address)) == -1)
+	if (bind(listenerFd, (sockaddr *)&address, sizeof(address)) == -1)
 	{
 		perror("bind() failed");
-		close(_serverFd);
-		_serverFd = -1;
+		close(listenerFd);
 		return -1;
 	}
 	std::cout << "Bound to port " << ntohs(address.sin_port) << std::endl;
 
-	if (listen(_serverFd, 10) == -1)
+	if (listen(listenerFd, 10) == -1)
 	{
 		std::cerr << "listen() failed\n";
-		close(_serverFd);
-		_serverFd = -1;
+		close(listenerFd);
 		return -1;
 	}
 
-	_fds.push_back({_serverFd, POLLIN, 0});
-	_listeners[_serverFd] = port;
+	_fds.push_back({listenerFd, POLLIN, 0});
+	_listeners[listenerFd] = port;
 	std::cout << "Listening on http://localhost:" << port << " ye yeeeee" << std::endl;
 	return 0;
 }
@@ -289,7 +285,6 @@ void Server::closeAllFds()
 	_fds.clear();
 	_clients.clear();
 	_listeners.clear();
-	_serverFd = -1;
 }
 
 bool Server::requestComplete(const std::string& buffer) const

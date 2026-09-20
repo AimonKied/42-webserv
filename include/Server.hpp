@@ -48,9 +48,9 @@ private:
 
 	bool _running;
 	int _port;
-	int _serverFd;
 	std::vector<pollfd> _fds;
 	std::map<int, Client> _clients;
 };
+
 
 } // namespace webserv
