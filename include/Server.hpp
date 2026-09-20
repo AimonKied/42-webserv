@@ -18,7 +18,7 @@ namespace webserv {
 
 class Server {
 public:
-	explicit Server(int port);
+	explicit Server(const std::vector<int>& ports);
 	~Server();
 
 	int run();
@@ -47,7 +47,7 @@ private:
 	static volatile std::sig_atomic_t _signalReceived;
 
 	bool _running;
-	int _port;
+	std::vector<int> _ports;
 	std::vector<pollfd> _fds;
 	std::map<int, Client> _clients;
 };

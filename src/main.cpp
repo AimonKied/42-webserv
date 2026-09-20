@@ -1,8 +1,10 @@
 #include "Webserv.hpp"
+#include <vector>
 
 int main()
 {
-	webserv::Server server(8080);
+	std::vector<int> ports = {8080, 8081};
+	webserv::Server server(ports);
 
 	return server.run();
 }

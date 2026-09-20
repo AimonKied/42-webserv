@@ -6,8 +6,8 @@ namespace webserv {
 
 volatile std::sig_atomic_t Server::_signalReceived = 0;
 
-Server::Server(int port)
-	: _running(false), _port(port), _fds(), _clients()
+Server::Server(const std::vector<int>& ports)
+	: _running(false), _ports(ports), _fds(), _clients()
 {
 }
 
@@ -22,12 +22,14 @@ int Server::run()
 	_signalReceived = 0;
 	if (setupSignalHandlers() < 0)
 		return 1;
-	if (createListeningSocket(_port) < 0)
+	for (int port : _ports)
 	{
-		closeAllFds();
-		return 1;
+		if (createListeningSocket(port) < 0)
+		{
+			closeAllFds();
+			return 1;
+		}
 	}
-
 	while (_running)
 	{
 		if (_signalReceived)
