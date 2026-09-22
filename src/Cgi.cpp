@@ -55,6 +55,11 @@ std::vector<std::string> buildCgiEnv(const Request& req, const CgiMatch& match, 
     env.push_back("PATH_INFO=" + match.pathInfo);
     env.push_back("QUERY_STRING=" + req.query);
     env.push_back("REDIRECT_STATUS=200");
+    env.push_back("CONTENT_LENGTH=" + std::to_string(req.body.size()));
+
+    const auto contentType = req.headers.find("content-type");
+    if (contentType != req.headers.end())
+        env.push_back("CONTENT_TYPE=" + contentType->second);
 
     for (const auto& header : req.headers) {
         if (header.first == "content-type" || header.first == "content-length")
