@@ -1,5 +1,6 @@
 #include "Cgi.hpp"
 #include <filesystem>
+#include <cctype>
 
 CgiMatch resolveCgiTarget(const Request& req, const LocationConfig& loc) {
     CgiMatch result;
@@ -25,6 +26,19 @@ static std::string methodToString(Method method) {
     }
 }
 
+/* Der Parser speichert Header-Namen klein, fuer die Env muessen sie wieder gross. */
+static std::string toEnvName(const std::string& headerName) {
+    std::string result = "HTTP_";
+
+    for (unsigned char c : headerName) {
+        if (c == '-')
+            result += '_';
+        else
+            result += static_cast<char>(std::toupper(c));
+    }
+    return result;
+}
+
 std::vector<std::string> buildCgiEnv(const Request& req, const CgiMatch& match, const ServerConfig& server, const std::string& scriptPath) {
     std::vector<std::string> env;
 
@@ -41,6 +55,12 @@ std::vector<std::string> buildCgiEnv(const Request& req, const CgiMatch& match, 
     env.push_back("PATH_INFO=" + match.pathInfo);
     env.push_back("QUERY_STRING=" + req.query);
     env.push_back("REDIRECT_STATUS=200");
+
+    for (const auto& header : req.headers) {
+        if (header.first == "content-type" || header.first == "content-length")
+            continue;
+        env.push_back(toEnvName(header.first) + "=" + header.second);
+    }
 
     return env;
 }
