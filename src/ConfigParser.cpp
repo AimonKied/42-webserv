@@ -100,6 +100,36 @@ LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& token
     expect(tokens, position, "{");
     while (position < tokens.size() && tokens[position] != "}") {
         const std::string directive = take(tokens, position);
+        if (directive == "return") {
+            if (location.redirectCode != 0) {
+                throw std::runtime_error("Duplicate return directive in location block");
+            }
+            const std::string code = take(tokens, position);
+            if (code == "301") location.redirectCode = 301;
+            else if (code == "302") location.redirectCode = 302;
+            else if (code == "307") location.redirectCode = 307;
+            else if (code == "308") location.redirectCode = 308;
+            else throw std::runtime_error("Redirect status must be 301, 302, 307, or 308");
+
+            const std::string target = take(tokens, position);
+            if (target.empty() || (target[0] != '/' &&
+                target.compare(0, 7, "http://") != 0 &&
+                target.compare(0, 8, "https://") != 0)) {
+                throw std::runtime_error("Redirect destination must start with '/', 'http://', or 'https://'");
+            }
+            for (std::size_t i = 0; i < target.size(); ++i) {
+                const unsigned char character = static_cast<unsigned char>(target[i]);
+                if (character <= 0x20 || character == 0x7f) {
+                    throw std::runtime_error("Redirect destination cannot contain whitespace or control characters");
+                }
+            }
+            if (target == "http://" || target == "https://") {
+                throw std::runtime_error("Redirect URL requires a destination after the scheme");
+            }
+            expect(tokens, position, ";");
+            location.redirectTarget = target;
+            continue;
+        }
         if (directive == "allow_methods") {
             if (!location.methods.empty()) {
                 throw std::runtime_error("Duplicate allow_methods directive in location block");
