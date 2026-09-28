@@ -68,7 +68,30 @@ LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& token
     }
 
     expect(tokens, position, "{");
-    // Location settings will be added in the next step.
+    while (position < tokens.size() && tokens[position] != "}") {
+        const std::string directive = take(tokens, position);
+        if (directive != "root" && directive != "index") {
+            throw std::runtime_error("Unknown location directive: " + directive);
+        }
+
+        const std::string value = take(tokens, position);
+        if (value.empty() || value == ";" || value == "{" || value == "}") {
+            throw std::runtime_error(directive + " requires a non-empty path");
+        }
+        expect(tokens, position, ";");
+
+        if (directive == "root") {
+            if (!location.root.empty()) {
+                throw std::runtime_error("Duplicate root directive in location block");
+            }
+            location.root = value;
+        } else {
+            if (!location.index.empty()) {
+                throw std::runtime_error("Duplicate index directive in location block");
+            }
+            location.index = value;
+        }
+    }
     expect(tokens, position, "}");
     return location;
 }
