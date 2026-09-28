@@ -191,6 +191,26 @@ LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& token
             autoindexSeen = true;
             continue;
         }
+        if (directive == "cgi_extension") {
+            if (!location.cgiExtension.empty()) {
+                throw std::runtime_error("Duplicate cgi_extension directive in location block");
+            }
+            const std::string extension = take(tokens, position);
+            if (extension.size() < 2 || extension[0] != '.') {
+                throw std::runtime_error("cgi_extension requires an extension such as '.py'");
+            }
+            for (std::size_t i = 1; i < extension.size(); ++i) {
+                const char character = extension[i];
+                if (!((character >= 'a' && character <= 'z') ||
+                      (character >= 'A' && character <= 'Z') ||
+                      (character >= '0' && character <= '9'))) {
+                    throw std::runtime_error("cgi_extension must contain only letters or digits after the dot");
+                }
+            }
+            expect(tokens, position, ";");
+            location.cgiExtension = extension;
+            continue;
+        }
         if (directive != "root" && directive != "index" && directive != "upload_store") {
             throw std::runtime_error("Unknown location directive: " + directive);
         }
