@@ -90,6 +90,7 @@ Config ConfigParser::parseFile(const std::string& path) const {
 LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& tokens,
                                            std::size_t& position) const {
     LocationConfig location;
+    bool autoindexSeen = false;
     location.path = take(tokens, position);
     if (location.path.empty() || location.path[0] != '/') {
         throw std::runtime_error("Location path must start with '/'");
@@ -98,6 +99,19 @@ LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& token
     expect(tokens, position, "{");
     while (position < tokens.size() && tokens[position] != "}") {
         const std::string directive = take(tokens, position);
+        if (directive == "autoindex") {
+            if (autoindexSeen) {
+                throw std::runtime_error("Duplicate autoindex directive in location block");
+            }
+            const std::string value = take(tokens, position);
+            if (value != "on" && value != "off") {
+                throw std::runtime_error("autoindex requires 'on' or 'off'");
+            }
+            expect(tokens, position, ";");
+            location.autoindex = (value == "on");
+            autoindexSeen = true;
+            continue;
+        }
         if (directive != "root" && directive != "index") {
             throw std::runtime_error("Unknown location directive: " + directive);
         }
