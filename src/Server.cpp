@@ -225,6 +225,12 @@ int Server::handleClientRead(size_t& i)
 		}
 		return -1;
 	}
+	if (client.readBuffer.size() > MAX_REQUEST_SIZE)
+	{
+		std::cerr << "Request too large\n";
+		cleanupClient(i);
+		return -1;
+	}
 	if (requestComplete(client.readBuffer))
 	{
 		client.state = ClientState::Writing;

@@ -21,7 +21,6 @@ public:
 
 	ssize_t receive();
 	ssize_t sendChunk();
-	size_t MAX_REQUEST_SIZE = 1024 * 1024; // 1mb
 
 	int fd;
 	int listenerFd;
