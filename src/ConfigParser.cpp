@@ -17,6 +17,8 @@ Config ConfigParser::parseFile(const std::string& path) const {
         expect(tokens, position, "{");
 
         ServerConfig server;
+        std::string defaultRoot;
+        std::string defaultIndex;
         while (position < tokens.size() && tokens[position] != "}") {
             const std::string directive = take(tokens, position);
             if (directive == "listen") {
@@ -36,6 +38,24 @@ Config ConfigParser::parseFile(const std::string& path) const {
                 }
                 expect(tokens, position, ";");
                 server.serverName = name;
+            } else if (directive == "root" || directive == "index") {
+                const std::string value = take(tokens, position);
+                if (value.empty() || value == ";" || value == "{" || value == "}") {
+                    throw std::runtime_error(directive + " requires a non-empty path");
+                }
+                expect(tokens, position, ";");
+
+                if (directive == "root") {
+                    if (!defaultRoot.empty()) {
+                        throw std::runtime_error("Duplicate root directive in server block");
+                    }
+                    defaultRoot = value;
+                } else {
+                    if (!defaultIndex.empty()) {
+                        throw std::runtime_error("Duplicate index directive in server block");
+                    }
+                    defaultIndex = value;
+                }
             } else if (directive == "location") {
                 LocationConfig location = parseLocation(tokens, position);
                 for (const LocationConfig& existing : server.locations) {
@@ -49,6 +69,14 @@ Config ConfigParser::parseFile(const std::string& path) const {
             }
         }
         expect(tokens, position, "}");
+
+        // Apply defaults after reading the whole server, regardless of directive order.
+        if (defaultRoot.empty()) defaultRoot = "./www";
+        if (defaultIndex.empty()) defaultIndex = "index.html";
+        for (LocationConfig& location : server.locations) {
+            if (location.root.empty()) location.root = defaultRoot;
+            if (location.index.empty()) location.index = defaultIndex;
+        }
         config.push_back(server);
     }
 
