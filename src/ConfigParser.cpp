@@ -18,6 +18,7 @@ Config ConfigParser::parseFile(const std::string& path) const {
         expect(tokens, position, "{");
 
         ServerConfig server;
+        server.host = "0.0.0.0";
         std::string defaultRoot;
         std::string defaultIndex;
         while (position < tokens.size() && tokens[position] != "}") {
@@ -26,7 +27,15 @@ Config ConfigParser::parseFile(const std::string& path) const {
                 if (server.port != 0) {
                     throw std::runtime_error("Duplicate listen directive in server block");
                 }
-                server.port = parsePort(take(tokens, position));
+                const std::string address = take(tokens, position);
+                const std::size_t colon = address.find(':');
+                if (colon == std::string::npos) {
+                    server.port = parsePort(address);
+                } else {
+                    server.host = address.substr(0, colon);
+                    validateIPv4(server.host);
+                    server.port = parsePort(address.substr(colon + 1));
+                }
                 expect(tokens, position, ";");
             } else if (directive == "server_name") {
                 if (!server.serverName.empty()) {
@@ -246,6 +255,32 @@ LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& token
         location.methods.push_back(Method::DELETE);
     }
     return location;
+}
+
+// Require four decimal numbers from 0 to 255, separated by dots.
+void ConfigParser::validateIPv4(const std::string& address) const {
+    std::size_t start = 0;
+    for (int part = 0; part < 4; ++part) {
+        const std::size_t dot = address.find('.', start);
+        const std::string number = address.substr(start, dot == std::string::npos
+                                                        ? std::string::npos : dot - start);
+        if (number.empty() || number.size() > 3 ||
+            (number.size() > 1 && number[0] == '0')) {
+            throw std::runtime_error("Invalid listen IPv4 address: " + address);
+        }
+        int value = 0;
+        for (std::size_t i = 0; i < number.size(); ++i) {
+            if (number[i] < '0' || number[i] > '9') {
+                throw std::runtime_error("Invalid listen IPv4 address: " + address);
+            }
+            value = value * 10 + (number[i] - '0');
+        }
+        if (value > 255 || (part < 3 && dot == std::string::npos) ||
+            (part == 3 && dot != std::string::npos)) {
+            throw std::runtime_error("Invalid listen IPv4 address: " + address);
+        }
+        if (part < 3) start = dot + 1;
+    }
 }
 
 // Convert decimal digits to a port, rejecting invalid text and out-of-range values.
