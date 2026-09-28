@@ -1,9 +1,32 @@
 #include "ConfigParser.hpp"
+#include "ConfigTokenizer.hpp"
 
 #include <stdexcept>
 
 ConfigParser::ConfigParser() {}
 ConfigParser::~ConfigParser() {}
+
+Config ConfigParser::parseFile(const std::string& path) const {
+    ConfigTokenizer tokenizer;
+    const std::vector<std::string> tokens = tokenizer.tokenizeFile(path);
+    std::size_t position = 0;
+    Config config;
+
+    while (position < tokens.size()) {
+        expect(tokens, position, "server");
+        expect(tokens, position, "{");
+
+        ServerConfig server;
+        // Only empty blocks are supported until we add directive parsing.
+        expect(tokens, position, "}");
+        config.push_back(server);
+    }
+
+    if (config.empty()) {
+        throw std::runtime_error("Configuration must contain at least one server block");
+    }
+    return config;
+}
 
 // Read one token and advance to the next one.
 std::string ConfigParser::take(const std::vector<std::string>& tokens,
