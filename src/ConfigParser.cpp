@@ -39,6 +39,30 @@ Config ConfigParser::parseFile(const std::string& path) const {
                 }
                 expect(tokens, position, ";");
                 server.serverName = name;
+            } else if (directive == "error_page") {
+                const std::string code = take(tokens, position);
+                if (code.size() != 3 || (code[0] != '4' && code[0] != '5') ||
+                    code[1] < '0' || code[1] > '9' || code[2] < '0' || code[2] > '9') {
+                    throw std::runtime_error("error_page requires an error code between 400 and 599");
+                }
+                const int status = (code[0] - '0') * 100 + (code[1] - '0') * 10 + (code[2] - '0');
+                if (server.errorPages.find(status) != server.errorPages.end()) {
+                    throw std::runtime_error("Duplicate error_page for status " + code);
+                }
+
+                // Store a URL path to resolve under the configured root during serving.
+                const std::string path = take(tokens, position);
+                if (path.empty() || path[0] != '/' || path == "/") {
+                    throw std::runtime_error("error_page requires a file path starting with '/'");
+                }
+                for (std::size_t i = 0; i < path.size(); ++i) {
+                    const unsigned char character = static_cast<unsigned char>(path[i]);
+                    if (character <= 0x20 || character == 0x7f) {
+                        throw std::runtime_error("error_page path cannot contain whitespace or control characters");
+                    }
+                }
+                expect(tokens, position, ";");
+                server.errorPages[status] = path;
             } else if (directive == "root" || directive == "index") {
                 const std::string value = take(tokens, position);
                 if (value.empty() || value == ";" || value == "{" || value == "}") {
