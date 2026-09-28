@@ -104,6 +104,11 @@ Config ConfigParser::parseFile(const std::string& path) const {
         }
         expect(tokens, position, "}");
 
+        // A valid listen directive always sets a non-zero port.
+        if (server.port == 0) {
+            throw std::runtime_error("Each server block requires a listen directive");
+        }
+
         // Apply defaults after reading the whole server, regardless of directive order.
         if (defaultRoot.empty()) defaultRoot = "./www";
         if (defaultIndex.empty()) defaultIndex = "index.html";
