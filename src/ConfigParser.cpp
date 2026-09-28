@@ -2,6 +2,7 @@
 #include "ConfigTokenizer.hpp"
 
 #include <stdexcept>
+#include <algorithm>
 
 ConfigParser::ConfigParser() {}
 ConfigParser::~ConfigParser() {}
@@ -99,6 +100,30 @@ LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& token
     expect(tokens, position, "{");
     while (position < tokens.size() && tokens[position] != "}") {
         const std::string directive = take(tokens, position);
+        if (directive == "allow_methods") {
+            if (!location.methods.empty()) {
+                throw std::runtime_error("Duplicate allow_methods directive in location block");
+            }
+            while (position < tokens.size() && tokens[position] != ";") {
+                const std::string name = take(tokens, position);
+                Method method;
+                if (name == "GET") method = Method::GET;
+                else if (name == "POST") method = Method::POST;
+                else if (name == "DELETE") method = Method::DELETE;
+                else throw std::runtime_error("Unsupported HTTP method: " + name);
+
+                if (std::find(location.methods.begin(), location.methods.end(), method)
+                    != location.methods.end()) {
+                    throw std::runtime_error("Duplicate HTTP method: " + name);
+                }
+                location.methods.push_back(method);
+            }
+            if (location.methods.empty()) {
+                throw std::runtime_error("allow_methods requires at least one method");
+            }
+            expect(tokens, position, ";");
+            continue;
+        }
         if (directive == "autoindex") {
             if (autoindexSeen) {
                 throw std::runtime_error("Duplicate autoindex directive in location block");
@@ -135,6 +160,12 @@ LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& token
         }
     }
     expect(tokens, position, "}");
+    // Preserve the existing server's methods when the directive is omitted.
+    if (location.methods.empty()) {
+        location.methods.push_back(Method::GET);
+        location.methods.push_back(Method::POST);
+        location.methods.push_back(Method::DELETE);
+    }
     return location;
 }
 
