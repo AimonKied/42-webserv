@@ -13,6 +13,8 @@ public:
     Config parseFile(const std::string &path) const;
 
 private:
+    LocationConfig parseLocation(const std::vector<std::string>& tokens,
+                                 std::size_t& position) const;
     int parsePort(const std::string& value) const;
     std::string take(const std::vector<std::string>& tokens, std::size_t& position) const;
     void expect(const std::vector<std::string>& tokens, std::size_t& position,

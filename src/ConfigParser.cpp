@@ -36,6 +36,14 @@ Config ConfigParser::parseFile(const std::string& path) const {
                 }
                 expect(tokens, position, ";");
                 server.serverName = name;
+            } else if (directive == "location") {
+                LocationConfig location = parseLocation(tokens, position);
+                for (const LocationConfig& existing : server.locations) {
+                    if (existing.path == location.path) {
+                        throw std::runtime_error("Duplicate location path: " + location.path);
+                    }
+                }
+                server.locations.push_back(location);
             } else {
                 throw std::runtime_error("Unknown server directive: " + directive);
             }
@@ -48,6 +56,21 @@ Config ConfigParser::parseFile(const std::string& path) const {
         throw std::runtime_error("Configuration must contain at least one server block");
     }
     return config;
+}
+
+// The caller has already consumed the "location" keyword.
+LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& tokens,
+                                           std::size_t& position) const {
+    LocationConfig location;
+    location.path = take(tokens, position);
+    if (location.path.empty() || location.path[0] != '/') {
+        throw std::runtime_error("Location path must start with '/'");
+    }
+
+    expect(tokens, position, "{");
+    // Location settings will be added in the next step.
+    expect(tokens, position, "}");
+    return location;
 }
 
 // Convert decimal digits to a port, rejecting invalid text and out-of-range values.
