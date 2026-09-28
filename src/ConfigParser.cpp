@@ -191,7 +191,7 @@ LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& token
             autoindexSeen = true;
             continue;
         }
-        if (directive != "root" && directive != "index") {
+        if (directive != "root" && directive != "index" && directive != "upload_store") {
             throw std::runtime_error("Unknown location directive: " + directive);
         }
 
@@ -206,11 +206,16 @@ LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& token
                 throw std::runtime_error("Duplicate root directive in location block");
             }
             location.root = value;
-        } else {
+        } else if (directive == "index") {
             if (!location.index.empty()) {
                 throw std::runtime_error("Duplicate index directive in location block");
             }
             location.index = value;
+        } else {
+            if (!location.uploadStore.empty()) {
+                throw std::runtime_error("Duplicate upload_store directive in location block");
+            }
+            location.uploadStore = value;
         }
     }
     expect(tokens, position, "}");
