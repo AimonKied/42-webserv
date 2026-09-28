@@ -25,6 +25,17 @@ Config ConfigParser::parseFile(const std::string& path) const {
                 }
                 server.port = parsePort(take(tokens, position));
                 expect(tokens, position, ";");
+            } else if (directive == "server_name") {
+                if (!server.serverName.empty()) {
+                    throw std::runtime_error("Duplicate server_name directive in server block");
+                }
+                const std::string name = take(tokens, position);
+                if (name.empty() || name == ";" || name == "{" || name == "}" ||
+                    name.find_first_of(" \t\r\n") != std::string::npos) {
+                    throw std::runtime_error("server_name requires a single non-empty name");
+                }
+                expect(tokens, position, ";");
+                server.serverName = name;
             } else {
                 throw std::runtime_error("Unknown server directive: " + directive);
             }
