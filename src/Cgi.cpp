@@ -1,4 +1,6 @@
 #include "Cgi.hpp"
+#include "HttpResponse.hpp"
+#include "ConfigTypes.hpp"
 #include <filesystem>
 #include <cctype>
 
@@ -68,4 +70,23 @@ std::vector<std::string> buildCgiEnv(const Request& req, const CgiMatch& match, 
     }
 
     return env;
+}
+
+/* CGI Response */
+
+Response buildCgiResponse(const std::string& output, const LocationConfig& loc) {
+    Response res;
+
+    size_t crlfPos = output.find("\r\n\r\n");
+    size_t lfPos = output.find("\n\n");
+    if (crlfPos == std::string::npos && lfPos == std::string::npos) {
+        res = makeErrorResponse(502, loc);
+        return res;
+    }
+    if (crlfPos < lfPos && crlfPos != std::string::npos)
+        res.body = output.substr(crlfPos + 4);
+    else
+        res.body = output.substr(lfPos + 2);
+
+    return res;
 }
