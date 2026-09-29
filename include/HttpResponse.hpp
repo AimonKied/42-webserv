@@ -24,3 +24,4 @@ class Response {
     };
     
     Response makeErrorResponse(int code, const LocationConfig& loc);
+    std::string getStatusText(int code);
