@@ -21,4 +21,7 @@ class Response {
         static Response buildPost(const Request& req, const LocationConfig&);
         static Response buildDelete(const Request& req, const LocationConfig&);
         static Response buildRedirect(int code, const std::string& location);
-};
+    };
+    
+    Response makeErrorResponse(int code, const LocationConfig& loc);
+    std::string getStatusText(int code);
