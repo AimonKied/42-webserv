@@ -83,10 +83,14 @@ Response buildCgiResponse(const std::string& output, const LocationConfig& loc) 
         res = makeErrorResponse(502, loc);
         return res;
     }
-    if (crlfPos < lfPos && crlfPos != std::string::npos)
+    std::string headerPart;
+    if (crlfPos < lfPos) {
+        headerPart = output.substr(0, crlfPos);
         res.body = output.substr(crlfPos + 4);
-    else
+    } else {
+        headerPart = output.substr(0, lfPos);
         res.body = output.substr(lfPos + 2);
+    }
 
     return res;
 }
