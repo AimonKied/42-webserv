@@ -1,7 +1,6 @@
 #include "Webserv.hpp"
 #include "ConfigParser.hpp"
 #include <stdexcept>
-#include <vector>
 
 int main(int argc, char** argv)
 {
@@ -12,18 +11,15 @@ int main(int argc, char** argv)
     try {
         const std::string path = argc == 2 ? argv[1] : "config/default.conf";
         Config config = ConfigParser().parseFile(path);
-        if (config.size() != 1)
-            throw std::runtime_error("This runtime currently supports one server block");
-        if (config[0].locations.size() != 1 || config[0].locations[0].path != "/")
-            throw std::runtime_error("This runtime currently requires one location at '/'");
-        webserv::Server server(config[0]);
+        // Location selection is not connected yet; validate each server's layout.
+        for (std::size_t i = 0; i < config.size(); ++i) {
+            if (config[i].locations.size() != 1 || config[i].locations[0].path != "/")
+                throw std::runtime_error("Each server currently requires one location at '/'");
+        }
+        webserv::Server server(config);
         return server.run();
     } catch (const std::exception& error) {
         std::cerr << "Startup error: " << error.what() << '\n';
         return 1;
     }
-	std::vector<int> ports = {8080, 8081};
-	webserv::Server server(ports);
-
-	return server.run();
 }

@@ -8,8 +8,8 @@ namespace webserv {
 
 volatile std::sig_atomic_t Server::_signalReceived = 0;
 
-Server::Server(const std::vector<int>& ports)
-	: _running(false), _ports(ports), _fds(), _clients()
+Server::Server(const Config& config)
+	: _running(false), _config(config), _fds(), _clients()
 {
 }
 
@@ -24,9 +24,9 @@ int Server::run()
 	_signalReceived = 0;
 	if (setupSignalHandlers() < 0)
 		return 1;
-	for (int port : _ports)
+	for (std::size_t configIndex = 0; configIndex < _config.size(); ++configIndex)
 	{
-		if (createListeningSocket(port) < 0)
+		if (createListeningSocket(configIndex) < 0)
 		{
 			closeAllFds();
 			return 1;
@@ -131,8 +131,9 @@ int Server::setupSignalHandlers()
 	return 0;
 }
 
-int Server::createListeningSocket(int port)
+int Server::createListeningSocket(std::size_t configIndex)
 {
+	const int port = _config[configIndex].port;
 	int listenerFd = socket(AF_INET, SOCK_STREAM, 0);
 	if (listenerFd == -1)
 	{
@@ -175,7 +176,7 @@ int Server::createListeningSocket(int port)
 	}
 
 	_fds.push_back({listenerFd, POLLIN, 0});
-	_listeners[listenerFd] = port;
+	_listeners[listenerFd] = configIndex;
 	std::cout << "Listening on http://localhost:" << port << " ye yeeeee" << std::endl;
 	return 0;
 }
@@ -227,17 +228,11 @@ int Server::handleClientRead(size_t& i)
 		}
 		return -1;
 	}
-	const ServerConfig& serverConfig = _config;
+	const ServerConfig& serverConfig = _config.at(_listeners.at(client.listenerFd));
 	HttpParser parser;
 	Request request = parser.parse(client.readBuffer, serverConfig.clientMaxBodySize);
 
-	if (client.readBuffer.size() > MAX_REQUEST_SIZE)
-	{
-		std::cerr << "Request too large\n";
-		cleanupClient(i);
-		return -1;
-	}
-	if (requestComplete(client.readBuffer))
+	if (!request.complete && request.errorCode == 0)
 	{
 		std::cout << "Incomplete request. Continuing..." << std::endl;
 		return 0;
@@ -290,12 +285,6 @@ void Server::closeAllFds()
 	_fds.clear();
 	_clients.clear();
 	_listeners.clear();
-}
-
-bool Server::requestComplete(const std::string& buffer) const
-{
-	return buffer.find("\r\n\r\n") != std::string::npos
-		|| buffer.find("\n\n") != std::string::npos;
 }
 
 std::string Server::buildResponse(const Request& request, const LocationConfig& location) const
