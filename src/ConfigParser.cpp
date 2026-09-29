@@ -20,7 +20,7 @@ Config ConfigParser::parseFile(const std::string& path) const {
 
         ServerConfig server;
         server.host = "0.0.0.0";
-        server.clientMaxBodySize = 1024 * 1024;
+        server.clientMaxBodySize = 1024 * 1024; // not sure if its better to have default or not
         bool bodySizeSeen = false;
         std::string defaultRoot;
         std::string defaultIndex;

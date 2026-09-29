@@ -11,7 +11,6 @@ int main(int argc, char** argv)
     try {
         const std::string path = argc == 2 ? argv[1] : "config/default.conf";
         Config config = ConfigParser().parseFile(path);
-        // Multiple listeners and location selection are the next integration steps.
         if (config.size() != 1)
             throw std::runtime_error("This runtime currently supports one server block");
         if (config[0].locations.size() != 1 || config[0].locations[0].path != "/")
