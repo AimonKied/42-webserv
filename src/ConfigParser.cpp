@@ -3,6 +3,7 @@
 
 #include <stdexcept>
 #include <algorithm>
+#include <limits>
 
 ConfigParser::ConfigParser() {}
 ConfigParser::~ConfigParser() {}
@@ -19,6 +20,8 @@ Config ConfigParser::parseFile(const std::string& path) const {
 
         ServerConfig server;
         server.host = "0.0.0.0";
+        server.clientMaxBodySize = 1024 * 1024;
+        bool bodySizeSeen = false;
         std::string defaultRoot;
         std::string defaultIndex;
         while (position < tokens.size() && tokens[position] != "}") {
@@ -37,6 +40,13 @@ Config ConfigParser::parseFile(const std::string& path) const {
                     server.port = parsePort(address.substr(colon + 1));
                 }
                 expect(tokens, position, ";");
+            } else if (directive == "client_max_body_size") {
+                if (bodySizeSeen) {
+                    throw std::runtime_error("Duplicate client_max_body_size directive");
+                }
+                server.clientMaxBodySize = parseBodySize(take(tokens, position));
+                expect(tokens, position, ";");
+                bodySizeSeen = true;
             } else if (directive == "server_name") {
                 if (!server.serverName.empty()) {
                     throw std::runtime_error("Duplicate server_name directive in server block");
@@ -109,6 +119,10 @@ Config ConfigParser::parseFile(const std::string& path) const {
             throw std::runtime_error("Each server block requires a listen directive");
         }
 
+        if (server.locations.empty()) {
+            throw std::runtime_error("Each server block requires at least one location");
+        }
+
         // Apply defaults after reading the whole server, regardless of directive order.
         if (defaultRoot.empty()) defaultRoot = "./www";
         if (defaultIndex.empty()) defaultIndex = "index.html";
@@ -123,6 +137,25 @@ Config ConfigParser::parseFile(const std::string& path) const {
         throw std::runtime_error("Configuration must contain at least one server block");
     }
     return config;
+}
+
+// Read a size in bytes. Zero allows only empty request bodies.
+std::size_t ConfigParser::parseBodySize(const std::string& value) const {
+    if (value.empty()) {
+        throw std::runtime_error("client_max_body_size requires a number of bytes");
+    }
+    std::size_t size = 0;
+    for (std::size_t i = 0; i < value.size(); ++i) {
+        if (value[i] < '0' || value[i] > '9') {
+            throw std::runtime_error("client_max_body_size must be a number of bytes");
+        }
+        const std::size_t digit = value[i] - '0';
+        if (size > (std::numeric_limits<std::size_t>::max() - digit) / 10) {
+            throw std::runtime_error("client_max_body_size is too large");
+        }
+        size = size * 10 + digit;
+    }
+    return size;
 }
 
 // The caller has already consumed the "location" keyword.
