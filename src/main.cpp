@@ -1,6 +1,7 @@
 #include "Webserv.hpp"
 #include "ConfigParser.hpp"
 #include <stdexcept>
+#include <vector>
 
 int main(int argc, char** argv)
 {
@@ -21,4 +22,8 @@ int main(int argc, char** argv)
         std::cerr << "Startup error: " << error.what() << '\n';
         return 1;
     }
+	std::vector<int> ports = {8080, 8081};
+	webserv::Server server(ports);
+
+	return server.run();
 }

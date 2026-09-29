@@ -8,8 +8,8 @@ namespace webserv {
 
 volatile std::sig_atomic_t Server::_signalReceived = 0;
 
-Server::Server(const ServerConfig& config)
-	: _running(false), _config(config), _port(config.port), _serverFd(-1), _fds(), _clients()
+Server::Server(const std::vector<int>& ports)
+	: _running(false), _ports(ports), _fds(), _clients()
 {
 }
 
@@ -24,12 +24,14 @@ int Server::run()
 	_signalReceived = 0;
 	if (setupSignalHandlers() < 0)
 		return 1;
-	if (createListeningSocket() < 0)
+	for (int port : _ports)
 	{
-		closeAllFds();
-		return 1;
+		if (createListeningSocket(port) < 0)
+		{
+			closeAllFds();
+			return 1;
+		}
 	}
-
 	while (_running)
 	{
 		if (_signalReceived)
@@ -49,9 +51,9 @@ int Server::run()
 			return 1;
 		}
 
+		checkClientTimeouts();
 		for (size_t i = 0; i < _fds.size(); ++i)
 		{
-			checkClientTimeouts();
 			int fd = _fds[i].fd;
 			short revents = _fds[i].revents;
 
@@ -59,7 +61,7 @@ int Server::run()
 				continue;
 			if (revents & (POLLERR | POLLHUP | POLLNVAL))
 			{
-				if (fd == _serverFd)
+				if (isListener(fd))
 				{
 					std::cerr << "Fatal error on listening socket\n";
 					closeAllFds();
@@ -75,11 +77,11 @@ int Server::run()
 			}
 			if (revents & POLLIN)
 			{
-				if (fd == _serverFd)
+				if (isListener(fd))
 				{
-					if (acceptClient() < 0)
+					if (acceptClient(fd) < 0)
 					{
-						closeAllFds();
+						perror("acceptClient() failed");
 						return 1;
 					}
 				}
@@ -88,7 +90,7 @@ int Server::run()
 			}
 			if (revents & POLLOUT)
 			{
-				if (fd != _serverFd && _clients.at(fd).state == ClientState::Writing && handleClientWrite(i) != 0)
+				if (!isListener(fd) && _clients.at(fd).state == ClientState::Writing && handleClientWrite(i) != 0)
 					continue;
 			}
 
@@ -96,6 +98,11 @@ int Server::run()
 	}
 	closeAllFds();
 	return 0;
+}
+
+bool Server::isListener(int fd) const
+{
+	return _listeners.find(fd) != _listeners.end();
 }
 
 void Server::handleSignal(int signal)
@@ -116,73 +123,84 @@ int Server::setupSignalHandlers()
 		std::cerr << "failed to install SIGTERM handler\n";
 		return -1;
 	}
+	if (std::signal(SIGPIPE, SIG_IGN) == SIG_ERR)
+	{
+		std::cerr << "failed to install SIGPIPE handler\n";
+		return -1;
+	}
 	return 0;
 }
 
-int Server::createListeningSocket()
+int Server::createListeningSocket(int port)
 {
-	_serverFd = socket(AF_INET, SOCK_STREAM, 0);
-	setNonBlocking(_serverFd);
-	if (_serverFd == -1)
+	int listenerFd = socket(AF_INET, SOCK_STREAM, 0);
+	if (listenerFd == -1)
 	{
 		std::cerr << "socket() failed\n";
 		return -1;
 	}
-	std::cout << "Socket created: fd " << _serverFd << std::endl;
-
+	std::cout << "Socket created: fd " << listenerFd << std::endl;
+	if (setNonBlocking(listenerFd) == -1)
+	{
+		std::cerr << "setNonBlocking() failed\n";
+		close(listenerFd);
+		return -1;
+	}
 	int opt = 1;
-	if (setsockopt(_serverFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
+	if (setsockopt(listenerFd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1)
 	{
 		std::cerr << "setsockopt() failed\n";
-		close(_serverFd);
-		_serverFd = -1;
+		close(listenerFd);
 		return -1;
 	}
 
 	sockaddr_in address = {};
 	address.sin_family = AF_INET;
 	address.sin_addr.s_addr = INADDR_ANY;
-	address.sin_port = htons(_port);
+	address.sin_port = htons(port);
 
-	if (bind(_serverFd, (sockaddr *)&address, sizeof(address)) == -1)
+	if (bind(listenerFd, (sockaddr *)&address, sizeof(address)) == -1)
 	{
 		perror("bind() failed");
-		close(_serverFd);
-		_serverFd = -1;
+		close(listenerFd);
 		return -1;
 	}
 	std::cout << "Bound to port " << ntohs(address.sin_port) << std::endl;
 
-	if (listen(_serverFd, 10) == -1)
+	if (listen(listenerFd, 10) == -1)
 	{
 		std::cerr << "listen() failed\n";
-		close(_serverFd);
-		_serverFd = -1;
+		close(listenerFd);
 		return -1;
 	}
 
-	_fds.push_back({_serverFd, POLLIN, 0});
-	std::cout << "Listening on http://0.0.0.0:" << _port << std::endl;
+	_fds.push_back({listenerFd, POLLIN, 0});
+	_listeners[listenerFd] = port;
+	std::cout << "Listening on http://localhost:" << port << " ye yeeeee" << std::endl;
 	return 0;
 }
 
-int Server::acceptClient()
+int Server::acceptClient(int listenerFd)
 {
 	std::cout << "New connection is pending" << std::endl;
 
-	int clientFd = accept(_serverFd, NULL, NULL);
-	setNonBlocking(clientFd);
+	int clientFd = accept(listenerFd, NULL, NULL);
 	if (clientFd == -1)
 	{
 		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return 0; // fake news from poll client not ready
+			return 1; // fake news from poll client not ready
 		std::cerr << "accept() failed\n";
-		return -1;
+		return 1;
 	}
 	std::cout << "Client connected: fd " << clientFd << std::endl;
-
+	if (setNonBlocking(clientFd) == -1)
+	{
+		std::cerr << "setNonBlocking() failed\n";
+		close(clientFd);
+		return 1;
+	}
 	_fds.push_back({clientFd, POLLIN, 0});
-	_clients.emplace(clientFd, Client(clientFd));
+	_clients.emplace(clientFd, Client(clientFd, listenerFd));
 	return 0;
 }
 
@@ -213,7 +231,13 @@ int Server::handleClientRead(size_t& i)
 	HttpParser parser;
 	Request request = parser.parse(client.readBuffer, serverConfig.clientMaxBodySize);
 
-	if (!request.complete && request.errorCode == 0)
+	if (client.readBuffer.size() > MAX_REQUEST_SIZE)
+	{
+		std::cerr << "Request too large\n";
+		cleanupClient(i);
+		return -1;
+	}
+	if (requestComplete(client.readBuffer))
 	{
 		std::cout << "Incomplete request. Continuing..." << std::endl;
 		return 0;
@@ -265,7 +289,13 @@ void Server::closeAllFds()
 	}
 	_fds.clear();
 	_clients.clear();
-	_serverFd = -1;
+	_listeners.clear();
+}
+
+bool Server::requestComplete(const std::string& buffer) const
+{
+	return buffer.find("\r\n\r\n") != std::string::npos
+		|| buffer.find("\n\n") != std::string::npos;
 }
 
 std::string Server::buildResponse(const Request& request, const LocationConfig& location) const
@@ -292,7 +322,7 @@ void Server::checkClientTimeouts()
 	{
 		int fd = _fds[i].fd;
 
-		if (fd == _serverFd)
+		if (isListener(fd))
 			continue;
 		
 		Client& client = _clients.at(fd);
@@ -301,7 +331,6 @@ void Server::checkClientTimeouts()
 		{
 			std::cout << "Client at fd: " << fd << " timed out" << std::endl;
 			cleanupClient(i);
-			--i;
 		}
 	}
 
