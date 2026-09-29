@@ -8,8 +8,8 @@ namespace webserv {
 
 volatile std::sig_atomic_t Server::_signalReceived = 0;
 
-Server::Server(int port)
-	: _running(false), _port(port), _serverFd(-1), _fds(), _clients()
+Server::Server(const ServerConfig& config)
+	: _running(false), _config(config), _port(config.port), _serverFd(-1), _fds(), _clients()
 {
 }
 
@@ -162,7 +162,7 @@ int Server::createListeningSocket()
 	}
 
 	_fds.push_back({_serverFd, POLLIN, 0});
-	std::cout << "Listening on http://localhost:" << _port << " ye yeeeee" << std::endl;
+	std::cout << "Listening on http://0.0.0.0:" << _port << std::endl;
 	return 0;
 }
 
@@ -184,29 +184,6 @@ int Server::acceptClient()
 	_fds.push_back({clientFd, POLLIN, 0});
 	_clients.emplace(clientFd, Client(clientFd));
 	return 0;
-}
-
-/* Hardcoded Configfile-Filler, bis Configfile-Parser fertig ist */
-Config hardcodedConfig()
-{
-	LocationConfig root;
-	root.path = "/";
-	root.root = "./www";
-	root.index = "index.html";
-	root.methods.push_back(Method::GET);
-	root.methods.push_back(Method::POST);
-	root.methods.push_back(Method::DELETE);
-
-	ServerConfig server;
-	server.host = "0.0.0.0";
-	server.port = 8080;
-	server.serverName = "localhost";
-	server.clientMaxBodySize = 1024 * 1024;
-	server.locations.push_back(root);
-
-	Config config;
-	config.push_back(server);
-	return config;
 }
 
 int Server::handleClientRead(size_t& i)
@@ -232,9 +209,7 @@ int Server::handleClientRead(size_t& i)
 		}
 		return -1;
 	}
-	// Entfernen, nach dem Configfile-Parser fertig ist
-	const Config config = hardcodedConfig();
-	const ServerConfig& serverConfig = config[0];
+	const ServerConfig& serverConfig = _config;
 	HttpParser parser;
 	Request request = parser.parse(client.readBuffer, serverConfig.clientMaxBodySize);
 
