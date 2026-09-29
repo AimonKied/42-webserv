@@ -19,8 +19,6 @@ Config ConfigParser::parseFile(const std::string& path) const {
         expect(tokens, position, "{");
 
         ServerConfig server;
-        server.host = "0.0.0.0";
-        server.clientMaxBodySize = 1024 * 1024; // not sure if its better to have default or not
         bool bodySizeSeen = false;
         std::string defaultRoot;
         std::string defaultIndex;
@@ -33,7 +31,7 @@ Config ConfigParser::parseFile(const std::string& path) const {
                 const std::string address = take(tokens, position);
                 const std::size_t colon = address.find(':');
                 if (colon == std::string::npos) {
-                    server.port = parsePort(address);
+                    throw std::runtime_error("listen requires an explicit IPv4 address and port, e.g. 0.0.0.0:8080");
                 } else {
                     server.host = address.substr(0, colon);
                     validateIPv4(server.host);
@@ -118,17 +116,23 @@ Config ConfigParser::parseFile(const std::string& path) const {
         if (server.port == 0) {
             throw std::runtime_error("Each server block requires a listen directive");
         }
+        if (!bodySizeSeen) {
+            throw std::runtime_error("Each server block requires client_max_body_size in bytes");
+        }
 
         if (server.locations.empty()) {
             throw std::runtime_error("Each server block requires at least one location");
         }
 
-        // Apply defaults after reading the whole server, regardless of directive order.
-        if (defaultRoot.empty()) defaultRoot = "./www";
-        if (defaultIndex.empty()) defaultIndex = "index.html";
         for (LocationConfig& location : server.locations) {
             if (location.root.empty()) location.root = defaultRoot;
             if (location.index.empty()) location.index = defaultIndex;
+            if (location.root.empty()) {
+                throw std::runtime_error("Location " + location.path + " requires root at server or location level");
+            }
+            if (location.index.empty()) {
+                throw std::runtime_error("Location " + location.path + " requires index at server or location level");
+            }
         }
         config.push_back(server);
     }
@@ -286,11 +290,8 @@ LocationConfig ConfigParser::parseLocation(const std::vector<std::string>& token
         }
     }
     expect(tokens, position, "}");
-    // Preserve the existing server's methods when the directive is omitted.
     if (location.methods.empty()) {
-        location.methods.push_back(Method::GET);
-        location.methods.push_back(Method::POST);
-        location.methods.push_back(Method::DELETE);
+        throw std::runtime_error("Location " + location.path + " requires allow_methods");
     }
     return location;
 }
@@ -333,7 +334,6 @@ int ConfigParser::parsePort(const std::string& value) const {
             throw std::runtime_error("Invalid listen port: " + value);
         }
         port = port * 10 + (digit - '0');
-        // Check each step so even a very long number cannot overflow.
         if (port > 65535) {
             throw std::runtime_error("Listen port must be between 1 and 65535");
         }
