@@ -1,8 +1,7 @@
 #include "Cgi.hpp"
-#include "HttpResponse.hpp"
-#include "ConfigTypes.hpp"
 #include <filesystem>
 #include <cctype>
+#include <sstream>
 
 CgiMatch resolveCgiTarget(const Request& req, const LocationConfig& loc) {
     CgiMatch result;
@@ -90,6 +89,26 @@ Response buildCgiResponse(const std::string& output, const LocationConfig& loc) 
     } else {
         headerPart = output.substr(0, lfPos);
         res.body = output.substr(lfPos + 2);
+    }
+
+    std::istringstream headerStream(headerPart);
+    std::string line;
+    while (std::getline(headerStream, line)) {
+        if (!line.empty() && line.back() == '\r')
+            line.pop_back();
+        if (line.empty())
+            continue;
+
+        size_t colonPos = line.find(':');
+        if (colonPos == std::string::npos || colonPos == 0)
+            return makeErrorResponse(502, loc);
+
+        std::string name = line.substr(0, colonPos);
+        size_t valueStart = line.find_first_not_of(" \t", colonPos + 1);
+        std::string value;
+        if (valueStart != std::string::npos)
+            value = line.substr(valueStart);
+        res.headers[name] = value;
     }
 
     return res;

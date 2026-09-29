@@ -1,6 +1,7 @@
 #pragma once
 
 #include "HttpRequest.hpp"
+#include "HttpResponse.hpp"
 #include "ConfigTypes.hpp"
 #include <string>
 #include <vector>
@@ -12,6 +13,7 @@ struct CgiMatch {
 };
 
 CgiMatch resolveCgiTarget(const Request& req, const LocationConfig& loc);
+Response buildCgiResponse(const std::string& output, const LocationConfig& loc);
 
 std::vector<std::string> buildCgiEnv(const Request& req,
                                      const CgiMatch& match,
