@@ -229,6 +229,14 @@ int Server::handleClientRead(size_t& i)
 		return -1;
 	}
 	const ServerConfig& serverConfig = _config.at(_listeners.at(client.listenerFd));
+	const std::size_t maxRequestOverhead = 64 * 1024;
+	if (client.readBuffer.size() > serverConfig.clientMaxBodySize
+		&& client.readBuffer.size() - serverConfig.clientMaxBodySize > maxRequestOverhead)
+	{
+		std::cerr << "Request buffer limit exceeded\n";
+		cleanupClient(i);
+		return -1;
+	}
 	HttpParser parser;
 	Request request = parser.parse(client.readBuffer, serverConfig.clientMaxBodySize);
 
