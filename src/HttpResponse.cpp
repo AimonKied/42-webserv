@@ -73,6 +73,18 @@ static ResolvedPath resolvePath(const std::string& urlPath, const std::string& b
     return result;
 }
 
+/* Returned true wenn mindestens eins von den 3 true ist */
+bool locationMatches(const std::string& path, const std::string& locPath) {
+    if (path.compare(0, locPath.size(), locPath) != 0)
+        return false;
+
+    const bool exactMatch = (path.size() == locPath.size());
+    const bool locEndsWithSlash = (!locPath.empty() && locPath.back() == '/');
+    const bool slashFollows = (path.size() > locPath.size() && path[locPath.size()] == '/');
+
+    return exactMatch || locEndsWithSlash || slashFollows;
+}
+
 static std::string httpDate() {
     std::time_t now = std::time(nullptr);
     char buffer[64];
