@@ -24,4 +24,5 @@ class Response {
     };
     
     Response makeErrorResponse(int code, const LocationConfig& loc);
+    const LocationConfig* findBestLocation(const std::string& path, const ServerConfig& server);
     std::string getStatusText(int code);

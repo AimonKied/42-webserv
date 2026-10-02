@@ -74,7 +74,7 @@ static ResolvedPath resolvePath(const std::string& urlPath, const std::string& b
 }
 
 /* Returned true wenn mindestens eins von den 3 true ist */
-bool locationMatches(const std::string& path, const std::string& locPath) {
+static bool locationMatches(const std::string& path, const std::string& locPath) {
     if (path.compare(0, locPath.size(), locPath) != 0)
         return false;
 
@@ -83,6 +83,19 @@ bool locationMatches(const std::string& path, const std::string& locPath) {
     const bool slashFollows = (path.size() > locPath.size() && path[locPath.size()] == '/');
 
     return exactMatch || locEndsWithSlash || slashFollows;
+}
+
+/* Die längste passende Location wird returned oder nullptr wenn es keine gibt*/
+const LocationConfig* findBestLocation(const std::string& path, const ServerConfig& server) {
+    const LocationConfig* bestLoc = nullptr;
+
+    for (const LocationConfig& loc : server.locations) {
+        if (!locationMatches(path, loc.path))
+            continue;
+        if (bestLoc == nullptr || loc.path.size() > bestLoc->path.size())
+            bestLoc = &loc;
+    }
+    return bestLoc;
 }
 
 static std::string httpDate() {
