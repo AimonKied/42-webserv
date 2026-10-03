@@ -21,7 +21,7 @@ namespace webserv {
 
 class Server {
 public:
-	explicit Server(const std::vector<int>& ports);
+	explicit Server(const Config& config);
 	~Server();
 
 	int run();
@@ -33,10 +33,10 @@ private:
 	static void handleSignal(int signal);
 
 	static const size_t MAX_REQUEST_SIZE = 1024*1024;
-	std::map<int, int> _listeners;
+	std::map<int, size_t> _listeners;
 	bool isListener(int fd) const;
 	int setupSignalHandlers();
-	int createListeningSocket(int port);
+	int createListeningSocket(size_t configIndex);
 	int acceptClient(int listenerFd);
 	int handleClientRead(size_t& i);
 	int handleClientWrite(size_t& i);
@@ -44,7 +44,6 @@ private:
 	void closeAllFds();
 	int setNonBlocking(int fd);
 	void checkClientTimeouts();
-	bool requestComplete(const std::string& buffer) const;
 
 
 	std::string buildResponse(const Request& request, const LocationConfig& location) const;
@@ -52,7 +51,7 @@ private:
 	static volatile std::sig_atomic_t _signalReceived;
 
 	bool _running;
-	std::vector<int> _ports;
+	Config _config;
 	std::vector<pollfd> _fds;
 	std::map<int, Client> _clients;
 };
