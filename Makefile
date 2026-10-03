@@ -5,6 +5,7 @@ OBJ_DIR = obj
 SRC = $(wildcard $(SRC_DIR)/*.cpp)
 OBJ = $(patsubst $(SRC_DIR)/%.cpp,$(OBJ_DIR)/%.o,$(SRC))
 TARGET = webserv
+DEP = $(OBJ:.o=.d)
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -15,7 +16,7 @@ $(OBJ_DIR):
 	mkdir -p $(OBJ_DIR)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
 clean:
 	rm -rf $(OBJ) $(OBJ_DIR)
@@ -28,3 +29,5 @@ re: fclean all
 
 
 .PHONY: all clean fclean rebuild
+
+-include $(DEP)
