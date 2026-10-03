@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <ctime>
+#include <algorithm>
 
 Response makeErrorResponse(int code, const LocationConfig& loc);
 Response buildDirectoryListing(const std::string& fullPath, const std::string& urlPath, const LocationConfig& loc);
@@ -69,6 +70,43 @@ static ResolvedPath resolvePath(const std::string& urlPath, const std::string& b
     if (!isPathInsideRoot(result.path, baseDir)) {
         result.path.clear();
         result.errorCode = 403;
+    }
+    return result;
+}
+
+/* Returned true wenn mindestens eins von den 3 true ist */
+static bool locationMatches(const std::string& path, const std::string& locPath) {
+    if (path.compare(0, locPath.size(), locPath) != 0)
+        return false;
+
+    const bool exactMatch = (path.size() == locPath.size());
+    const bool locEndsWithSlash = (!locPath.empty() && locPath.back() == '/');
+    const bool slashFollows = (path.size() > locPath.size() && path[locPath.size()] == '/');
+
+    return exactMatch || locEndsWithSlash || slashFollows;
+}
+
+/* Die längste passende Location wird returned oder nullptr wenn es keine gibt*/
+const LocationConfig* findBestLocation(const std::string& path, const ServerConfig& server) {
+    const LocationConfig* bestLoc = nullptr;
+
+    for (const LocationConfig& loc : server.locations) {
+        if (!locationMatches(path, loc.path))
+            continue;
+        if (bestLoc == nullptr || loc.path.size() > bestLoc->path.size())
+            bestLoc = &loc;
+    }
+    return bestLoc;
+}
+
+/* Baut den Wert fuer den Allow-Header */
+static std::string allowHeader(const std::vector<Method>& methods) {
+    std::string result;
+
+    for (Method method : methods) {
+        if (!result.empty())
+            result += ", ";
+        result += methodToString(method);
     }
     return result;
 }
@@ -190,18 +228,28 @@ std::string Response::getMimeType(const std::string& filePath) {
     return "application/octet-stream";
 };
 
-/*
-Einstieg fuer den Server-Loop. Der Parser meldet Fehler nicht per Exception, sondern
-ueber Request::errorCode (400/405/413/414/431/501/505) - der hat Vorrang vor allem anderen,
-sonst wuerde ein kaputter Request hier als normaler GET behandelt.
-Ein unvollstaendiger Request ohne Fehlercode heisst "weiterlesen" und darf gar nicht
-erst ankommen; das 400 hier ist nur ein Netz, falls der Server-Loop zu frueh antwortet.
-*/
+Response Response::build(const Request& req, const ServerConfig& server) {
+    const LocationConfig* loc = findBestLocation(req.path, server);
+
+    if (loc == nullptr) {
+        const LocationConfig noLocation;
+        const int code = (req.errorCode != 0) ? req.errorCode : 404;
+        return makeErrorResponse(code, noLocation);
+    }
+    return build(req, *loc);
+}
+
 Response Response::build(const Request& req, const LocationConfig& loc) {
     if (req.errorCode != 0)
         return makeErrorResponse(req.errorCode, loc);
     if (!req.complete)
         return makeErrorResponse(400, loc);
+
+    if (std::find(loc.methods.begin(), loc.methods.end(), req.method) == loc.methods.end()) {
+        Response res = makeErrorResponse(405, loc);
+        res.headers["Allow"] = allowHeader(loc.methods);
+        return res;
+    }
 
     switch(req.method) {
         case Method::GET:

@@ -54,6 +54,16 @@ std::string getStatusText(int code) {
     }
 }
 
+std::string methodToString(Method method) {
+    switch (method) {
+        case Method::GET:     return "GET";
+        case Method::POST:    return "POST";
+        case Method::DELETE:  return "DELETE";
+        case Method::UNKNOWN: return "UNKNOWN";
+    }
+    return "UNKNOWN";
+}
+
 /*
 Eingebaute Fehlerseite fuer den Fall, dass keine eigene konfiguriert oder lesbar ist.
 Das Subject verlangt das ausdruecklich ("Your server must have default error pages if none
@@ -105,13 +115,8 @@ Response makeErrorResponse(int code, const LocationConfig& loc) {
         errorPath.pop_back();
     errorPath += "/error/" + std::to_string(code) + ".html";
 
-    /*
-    Gleiche Falle wie in serveFile: ein ifstream auf ein Verzeichnis meldet is_open() == true
-    und liest 0 Bytes. Ohne den is_regular_file-Check kaeme eine Fehlerseite mit leerem Body
-    raus, statt auf die eingebaute Seite zu fallen.
-    */
     std::error_code ec;
-    const bool usable = std::filesystem::is_regular_file(errorPath, ec);
+    const bool usable = !loc.root.empty() && std::filesystem::is_regular_file(errorPath, ec);
 
     std::ifstream file(errorPath);
     if (usable && file.is_open()) {

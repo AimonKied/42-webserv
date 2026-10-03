@@ -264,7 +264,7 @@ int Server::handleClientRead(size_t& i)
 
 	if (request.errorCode == 0 && dispatchCgi(client, request, serverConfig))
 		return 0;
-	queueResponse(client, Response::build(request, serverConfig.locations[0]));
+	queueResponse(client, Response::build(request, serverConfig));
 	return 0;
 }
 

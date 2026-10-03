@@ -18,15 +18,6 @@ CgiMatch resolveCgiTarget(const Request& req, const LocationConfig& loc) {
 	return result;
 }
 
-static std::string methodToString(Method method) {
-	switch (method) {
-		case Method::GET:		return "GET";
-		case Method::POST:		return "POST";
-		case Method::DELETE:	return "DELETE";
-		default:				return "";
-	}
-}
-
 /* Der Parser speichert Header-Namen klein, fuer die Env muessen sie wieder gross. */
 static std::string toEnvName(const std::string& headerName) {
 	std::string result = "HTTP_";
