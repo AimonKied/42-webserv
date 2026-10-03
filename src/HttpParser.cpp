@@ -9,6 +9,30 @@ namespace {
 const std::string::size_type MAX_REQUEST_LINE_SIZE = 8192;
 const std::string::size_type MAX_HEADERS_SIZE = 16384;
 
+int hexDigit(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+bool decodePath(const std::string &encoded, std::string &decoded) {
+    for (std::size_t i = 0; i < encoded.size(); ++i) {
+        unsigned char c = static_cast<unsigned char>(encoded[i]);
+        if (c == '%') {
+            if (encoded.size() - i < 3) return false;
+            const int high = hexDigit(encoded[i + 1]);
+            const int low = hexDigit(encoded[i + 2]);
+            if (high < 0 || low < 0) return false;
+            c = static_cast<unsigned char>(high * 16 + low);
+            i += 2;
+        }
+        if (c < 0x20 || c == 0x7f) return false;
+        decoded += static_cast<char>(c);
+    }
+    return true;
+}
+
 Request errorRequest(int errorCode) {
     Request request;
     request.errorCode = errorCode;
@@ -265,7 +289,10 @@ Request HttpParser::parse(const std::string &rawRequest,
 
     request.uri = target;
     const std::string::size_type queryStart = target.find('?');
-    request.path = target.substr(0, queryStart);
+    // Split before decoding: an encoded '?' belongs to the filename.
+    if (!decodePath(target.substr(0, queryStart), request.path)) {
+        return errorRequest(400);
+    }
     if (queryStart != std::string::npos) {
         request.query = target.substr(queryStart + 1);
     }

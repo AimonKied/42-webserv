@@ -1,4 +1,5 @@
 #include "HttpResponse.hpp"
+#include "UrlPath.hpp"
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -224,7 +225,7 @@ Response Response::buildGet(const Request& req, const LocationConfig& loc) {
     std::error_code ec;
     if (std::filesystem::is_directory(fullPath, ec)) {
         if (req.path.empty() || req.path.back() != '/') {
-            std::string location = req.path + "/";
+            std::string location = encodeUrlPath(req.path) + "/";
             if (!req.query.empty())
                 location += "?" + req.query;
             return buildRedirect(301, location);

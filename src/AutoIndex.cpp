@@ -1,4 +1,5 @@
 #include "HttpResponse.hpp"
+#include "UrlPath.hpp"
 #include <filesystem>
 #include <cctype>
 
@@ -62,16 +63,18 @@ Response buildDirectoryListing(const std::string& fullPath, const std::string& u
         return makeErrorResponse(errorCode, loc);
     }
 
-    res.body = "<html><head><title>Index of " + urlPath + "</title></head><body><h1>Index of " + urlPath + "</h1><ul>";
+    const std::string encodedPath = encodeUrlPath(urlPath);
+    const std::string htmlEscapedPath = escapeHtml(urlPath);
+    res.body = "<html><head><title>Index of " + htmlEscapedPath + "</title></head><body><h1>Index of " + htmlEscapedPath + "</h1><ul>";
     for (const auto& entry : it) {
         std::string name = entry.path().filename().string();
         bool isDir = entry.is_directory(ec);
         if (ec)
             continue;
         if (isDir) {
-            res.body += "<li><a href=\"" + urlPath + urlEncode(name) + "/\">" + escapeHtml(name) + "/</a></li>";
+            res.body += "<li><a href=\"" + encodedPath + urlEncode(name) + "/\">" + escapeHtml(name) + "/</a></li>";
         } else {
-            res.body += "<li><a href=\"" + urlPath + urlEncode(name) + "\">" + escapeHtml(name) + "</a></li>";
+            res.body += "<li><a href=\"" + encodedPath + urlEncode(name) + "\">" + escapeHtml(name) + "</a></li>";
         }
     }
     res.body += "</ul></body></html>";
