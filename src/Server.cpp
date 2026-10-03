@@ -41,7 +41,11 @@ int Server::run()
 			break;
 		}
 
-		int ready = poll(_fds.data(), _fds.size(), 1000);
+		// Poll a snapshot: CGI completion and client cleanup may mutate _fds.
+		std::vector<pollfd> readyFds = _fds;
+		const size_t socketCount = readyFds.size();
+		_cgi.appendPollFds(readyFds);
+		int ready = poll(readyFds.data(), readyFds.size(), _cgi.empty() ? 1000 : 50);
 		if (ready == -1)
 		{
 			if (errno == EINTR)
@@ -51,11 +55,16 @@ int Server::run()
 			return 1;
 		}
 
-		checkClientTimeouts();
-		for (size_t i = 0; i < _fds.size(); ++i)
+		_cgi.handleEvents(readyFds);
+		collectCgiResults();
+		for (size_t eventIndex = 0; eventIndex < socketCount; ++eventIndex)
 		{
-			int fd = _fds[i].fd;
-			short revents = _fds[i].revents;
+			const pollfd& event = readyFds[eventIndex];
+			int fd = event.fd;
+			short revents = event.revents;
+			size_t i = 0;
+			while (i < _fds.size() && _fds[i].fd != fd) ++i;
+			if (i == _fds.size()) continue; // pipe or removed client
 
 			if (revents == 0)
 				continue;
@@ -85,6 +94,14 @@ int Server::run()
 						return 1;
 					}
 				}
+				else if (_clients.at(fd).state == ClientState::WaitingForCgi)
+				{
+					char byte;
+					ssize_t count = recv(fd, &byte, 1, MSG_PEEK);
+					if (count <= 0) cleanupClient(i);
+					else _fds[i].events = 0; // pipelining is outside this runtime
+					continue;
+				}
 				else if (_clients.at(fd).state == ClientState::Reading && handleClientRead(i) < 0)
 					continue;
 			}
@@ -95,6 +112,7 @@ int Server::run()
 			}
 
 		}
+		checkClientTimeouts();
 	}
 	closeAllFds();
 	return 0;
@@ -235,9 +253,8 @@ int Server::handleClientRead(size_t& i)
 
 	if (client.readBuffer.size() > MAX_REQUEST_SIZE)
 	{
-		std::cerr << "Request too large\n";
-		cleanupClient(i);
-		return -1;
+		queueResponse(client, makeErrorResponse(413, serverConfig.locations[0]));
+		return 0;
 	}
 	if (!request.complete && request.errorCode == 0)
 	{
@@ -245,10 +262,9 @@ int Server::handleClientRead(size_t& i)
 		return 0;
 	}
 
-	client.state = ClientState::Writing;
-	client.writeBuffer = buildResponse(request, serverConfig.locations[0]);
-	client.readBuffer.clear();
-	_fds[i].events = POLLOUT;
+	if (request.errorCode == 0 && dispatchCgi(client, request, serverConfig))
+		return 0;
+	queueResponse(client, Response::build(request, serverConfig.locations[0]));
 	return 0;
 }
 
@@ -275,6 +291,7 @@ int Server::handleClientWrite(size_t& i)
 
 void Server::cleanupClient(size_t& i)
 {
+	_cgi.cancel(_fds[i].fd);
 	close(_fds[i].fd);
 	_clients.erase(_fds[i].fd);
 	_fds.erase(_fds.begin() + i);
@@ -284,6 +301,7 @@ void Server::cleanupClient(size_t& i)
 
 void Server::closeAllFds()
 {
+	_cgi.shutdown();
 	for (size_t i = 0; i < _fds.size(); ++i)
 	{
 		if (_fds[i].fd >= 0)
@@ -294,13 +312,10 @@ void Server::closeAllFds()
 	_listeners.clear();
 }
 
-std::string Server::buildResponse(const Request& request, const LocationConfig& location) const
-{
-	return Response::build(request, location).toString();
-}
-
 int Server::setNonBlocking(int fd)
 {
+	// CGI exec must not inherit listening or connected sockets.
+	if (fcntl(fd, F_SETFD, FD_CLOEXEC) == -1) return -1;
 	int flags = fcntl(fd, F_GETFL, 0);
 	if (flags == -1)
 		return -1;
