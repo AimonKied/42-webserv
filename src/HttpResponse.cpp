@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <stdexcept>
 #include <ctime>
+#include <algorithm>
 
 Response makeErrorResponse(int code, const LocationConfig& loc);
 Response buildDirectoryListing(const std::string& fullPath, const std::string& urlPath, const LocationConfig& loc);
@@ -96,6 +97,18 @@ const LocationConfig* findBestLocation(const std::string& path, const ServerConf
             bestLoc = &loc;
     }
     return bestLoc;
+}
+
+/* Baut den Wert fuer den Allow-Header */
+static std::string allowHeader(const std::vector<Method>& methods) {
+    std::string result;
+
+    for (Method method : methods) {
+        if (!result.empty())
+            result += ", ";
+        result += methodToString(method);
+    }
+    return result;
 }
 
 static std::string httpDate() {
@@ -227,6 +240,12 @@ Response Response::build(const Request& req, const LocationConfig& loc) {
         return makeErrorResponse(req.errorCode, loc);
     if (!req.complete)
         return makeErrorResponse(400, loc);
+
+    if (std::find(loc.methods.begin(), loc.methods.end(), req.method) == loc.methods.end()) {
+        Response res = makeErrorResponse(405, loc);
+        res.headers["Allow"] = allowHeader(loc.methods);
+        return res;
+    }
 
     switch(req.method) {
         case Method::GET:

@@ -54,6 +54,16 @@ std::string getStatusText(int code) {
     }
 }
 
+std::string methodToString(Method method) {
+    switch (method) {
+        case Method::GET:     return "GET";
+        case Method::POST:    return "POST";
+        case Method::DELETE:  return "DELETE";
+        case Method::UNKNOWN: return "UNKNOWN";
+    }
+    return "UNKNOWN";
+}
+
 /*
 Eingebaute Fehlerseite fuer den Fall, dass keine eigene konfiguriert oder lesbar ist.
 Das Subject verlangt das ausdruecklich ("Your server must have default error pages if none
