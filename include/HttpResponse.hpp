@@ -16,6 +16,7 @@ class Response {
         std::string toString() const;
         static Response serveFile(const std::string& filePath, const LocationConfig&);
         static std::string getMimeType(const std::string& filePath);
+        static Response build(const Request& req, const ServerConfig& server);
         static Response build(const Request& req, const LocationConfig&);
         static Response buildGet(const Request& req, const LocationConfig&);
         static Response buildPost(const Request& req, const LocationConfig&);

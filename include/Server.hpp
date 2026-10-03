@@ -46,7 +46,7 @@ private:
 	void checkClientTimeouts();
 
 
-	std::string buildResponse(const Request& request, const LocationConfig& location) const;
+	std::string buildResponse(const Request& request, const ServerConfig& serverConfig) const;
 
 	static volatile std::sig_atomic_t _signalReceived;
 

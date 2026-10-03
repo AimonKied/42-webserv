@@ -11,11 +11,6 @@ int main(int argc, char** argv)
     try {
         const std::string path = argc == 2 ? argv[1] : "config/default.conf";
         Config config = ConfigParser().parseFile(path);
-        // Location selection is not connected yet; validate each server's layout.
-        for (std::size_t i = 0; i < config.size(); ++i) {
-            if (config[i].locations.size() != 1 || config[i].locations[0].path != "/")
-                throw std::runtime_error("Each server currently requires one location at '/'");
-        }
         webserv::Server server(config);
         return server.run();
     } catch (const std::exception& error) {

@@ -228,13 +228,17 @@ std::string Response::getMimeType(const std::string& filePath) {
     return "application/octet-stream";
 };
 
-/*
-Einstieg fuer den Server-Loop. Der Parser meldet Fehler nicht per Exception, sondern
-ueber Request::errorCode (400/405/413/414/431/501/505) - der hat Vorrang vor allem anderen,
-sonst wuerde ein kaputter Request hier als normaler GET behandelt.
-Ein unvollstaendiger Request ohne Fehlercode heisst "weiterlesen" und darf gar nicht
-erst ankommen; das 400 hier ist nur ein Netz, falls der Server-Loop zu frueh antwortet.
-*/
+Response Response::build(const Request& req, const ServerConfig& server) {
+    const LocationConfig* loc = findBestLocation(req.path, server);
+
+    if (loc == nullptr) {
+        const LocationConfig noLocation;
+        const int code = (req.errorCode != 0) ? req.errorCode : 404;
+        return makeErrorResponse(code, noLocation);
+    }
+    return build(req, *loc);
+}
+
 Response Response::build(const Request& req, const LocationConfig& loc) {
     if (req.errorCode != 0)
         return makeErrorResponse(req.errorCode, loc);

@@ -239,7 +239,7 @@ int Server::handleClientRead(size_t& i)
 	}
 
 	client.state = ClientState::Writing;
-	client.writeBuffer = buildResponse(request, serverConfig.locations[0]);
+	client.writeBuffer = buildResponse(request, serverConfig);
 	client.readBuffer.clear();
 	_fds[i].events = POLLOUT;
 	return 0;
@@ -287,9 +287,9 @@ void Server::closeAllFds()
 	_listeners.clear();
 }
 
-std::string Server::buildResponse(const Request& request, const LocationConfig& location) const
+std::string Server::buildResponse(const Request& request, const ServerConfig& serverConfig) const
 {
-	return Response::build(request, location).toString();
+	return Response::build(request, serverConfig).toString();
 }
 
 int Server::setNonBlocking(int fd)
