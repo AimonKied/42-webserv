@@ -12,6 +12,7 @@ namespace webserv {
 enum class ClientState {
 	Reading,
 	Writing,
+	WaitingForCgi,
 	Closed
 };
 
