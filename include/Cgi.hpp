@@ -7,15 +7,15 @@
 #include <vector>
 
 struct CgiMatch {
-    bool isCgi = false;
-    std::string scriptName;
-    std::string pathInfo;
+	bool isCgi = false;
+	std::string scriptName;
+	std::string pathInfo;
 };
 
 CgiMatch resolveCgiTarget(const Request& req, const LocationConfig& loc);
 Response buildCgiResponse(const std::string& output, const LocationConfig& loc);
 
 std::vector<std::string> buildCgiEnv(const Request& req,
-                                     const CgiMatch& match,
-                                     const ServerConfig& server,
-                                     const std::string& scriptPath);
+									 const CgiMatch& match,
+									 const ServerConfig& server,
+									 const std::string& scriptPath);

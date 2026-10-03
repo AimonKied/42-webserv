@@ -4,23 +4,23 @@
 #include <unordered_map>
 
 enum class Method {
-    GET,
-    POST,
-    DELETE,
-    UNKNOWN
+	GET,
+	POST,
+	DELETE,
+	UNKNOWN
 };
 
 class Request {
 public:
-    Request();
+	Request();
 
-    Method method;
-    std::string uri;
-    std::string path;
-    std::string query;
-    std::string version;
-    std::unordered_map<std::string, std::string> headers;
-    std::string body;
-    bool complete;
-    int errorCode;
+	Method method;
+	std::string uri;
+	std::string path;
+	std::string query;
+	std::string version;
+	std::unordered_map<std::string, std::string> headers;
+	std::string body;
+	bool complete;
+	int errorCode;
 };
