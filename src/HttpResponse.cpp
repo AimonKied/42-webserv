@@ -94,18 +94,6 @@ const LocationConfig* findBestLocation(const std::string& path, const ServerConf
     return bestLoc;
 }
 
-/* Baut den Wert fuer den Allow-Header */
-static std::string allowHeader(const std::vector<Method>& methods) {
-    std::string result;
-
-    for (Method method : methods) {
-        if (!result.empty())
-            result += ", ";
-        result += methodToString(method);
-    }
-    return result;
-}
-
 static std::string httpDate() {
     std::time_t now = std::time(nullptr);
     char buffer[64];
@@ -245,11 +233,8 @@ Response Response::build(const Request& req, const LocationConfig& loc) {
         return makeErrorResponse(400, loc);
     if (loc.redirectCode != 0)
         return buildRedirect(loc.redirectCode, loc.redirectTarget);
-    if (std::find(loc.methods.begin(), loc.methods.end(), req.method) == loc.methods.end()) {
-        Response res = makeErrorResponse(405, loc);
-        res.headers["Allow"] = allowHeader(loc.methods);
-        return res;
-    }
+    if (std::find(loc.methods.begin(), loc.methods.end(), req.method) == loc.methods.end())
+        return makeErrorResponse(405, loc);
 
     switch(req.method) {
         case Method::GET:

@@ -64,6 +64,17 @@ std::string methodToString(Method method) {
     return "UNKNOWN";
 }
 
+static std::string allowHeader(const std::vector<Method>& methods) {
+    std::string result;
+
+    for (Method method : methods) {
+        if (!result.empty())
+            result += ", ";
+        result += methodToString(method);
+    }
+    return result;
+}
+
 /*
 Eingebaute Fehlerseite fuer den Fall, dass keine eigene konfiguriert oder lesbar ist.
 Das Subject verlangt das ausdruecklich ("Your server must have default error pages if none
@@ -132,6 +143,8 @@ Response makeErrorResponse(int code, const LocationConfig& loc) {
 
     if (!loadConfiguredErrorPage(code, loc, res.body))
         res.body = defaultErrorPage(code, res.statusText);
+    if (code == 405)
+        res.headers["Allow"] = allowHeader(loc.methods);
     res.headers["Content-Type"] = "text/html; charset=utf-8";
     res.headers["Content-Length"] = std::to_string(res.body.size());
     return res;
