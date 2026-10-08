@@ -244,7 +244,8 @@ Response Response::build(const Request& req, const LocationConfig& loc) {
         return makeErrorResponse(req.errorCode, loc);
     if (!req.complete)
         return makeErrorResponse(400, loc);
-
+    if (loc.redirectCode != 0)
+        return buildRedirect(loc.redirectCode, loc.redirectTarget);
     if (std::find(loc.methods.begin(), loc.methods.end(), req.method) == loc.methods.end()) {
         Response res = makeErrorResponse(405, loc);
         res.headers["Allow"] = allowHeader(loc.methods);
