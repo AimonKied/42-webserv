@@ -105,27 +105,33 @@ static std::string defaultErrorPage(int code, const std::string& statusText) {
         "</html>\n";
 }
 
+/* Sucht nach errorPages in der LocationConfig. Falls gefunden, wird die passende Seite geladen. Falls nicht, returned false und Standarderrorpage wird verwendet */
+static bool loadConfiguredErrorPage(int code, const LocationConfig& loc, std::string& body) {
+    const auto entry = loc.errorPages.find(code);
+    if (entry == loc.errorPages.end() || loc.root.empty())
+        return false;
+
+    const ResolvedPath target = resolvePath(entry->second, loc.root);
+    std::error_code ec;
+    if (target.errorCode != 0 || !std::filesystem::is_regular_file(target.path, ec))
+        return false;
+
+    std::ifstream file(target.path, std::ios::binary);
+    if (!file.is_open())
+        return false;
+    std::stringstream ss;
+    ss << file.rdbuf();
+    body = ss.str();
+    return true;
+}
+
 Response makeErrorResponse(int code, const LocationConfig& loc) {
     Response res;
     res.statusCode = code;
     res.statusText = getStatusText(code);
 
-    std::string errorPath = loc.root;
-    if (!errorPath.empty() && errorPath.back() == '/')
-        errorPath.pop_back();
-    errorPath += "/error/" + std::to_string(code) + ".html";
-
-    std::error_code ec;
-    const bool usable = !loc.root.empty() && std::filesystem::is_regular_file(errorPath, ec);
-
-    std::ifstream file(errorPath);
-    if (usable && file.is_open()) {
-        std::stringstream ss;
-        ss << file.rdbuf();
-        res.body = ss.str();
-    } else {
+    if (!loadConfiguredErrorPage(code, loc, res.body))
         res.body = defaultErrorPage(code, res.statusText);
-    }
     res.headers["Content-Type"] = "text/html; charset=utf-8";
     res.headers["Content-Length"] = std::to_string(res.body.size());
     return res;

@@ -24,6 +24,12 @@ class Response {
 		static Response buildRedirect(int code, const std::string& location);
 	};
 
+	struct ResolvedPath {
+		std::string path;
+		int errorCode = 0;
+	};
+
+	ResolvedPath resolvePath(const std::string& urlPath, const std::string& baseDir);
 	Response makeErrorResponse(int code, const LocationConfig& loc);
 	const LocationConfig* findBestLocation(const std::string& path, const ServerConfig& server);
 	std::string getStatusText(int code);

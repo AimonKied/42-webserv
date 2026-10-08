@@ -54,12 +54,7 @@ Schritt bleiben, sonst wird ein anderer Pfad geprueft als spaeter geoeffnet wird
 baseDir statt LocationConfig als Parameter, damit buildPost spaeter uploadStore
 uebergeben kann, ohne dass diese Funktion die Methode kennen muss.
 */
-struct ResolvedPath {
-    std::string path;
-    int errorCode = 0;      // 0 = ok
-};
-
-static ResolvedPath resolvePath(const std::string& urlPath, const std::string& baseDir) {
+ResolvedPath resolvePath(const std::string& urlPath, const std::string& baseDir) {
     ResolvedPath result;
 
     result.path = baseDir;
