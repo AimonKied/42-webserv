@@ -272,11 +272,27 @@ Response Response::buildGet(const Request& req, const LocationConfig& loc) {
     return serveFile(fullPath, loc);
 }
 
+static std::string stripLocationPrefix(const std::string& path, const std::string& locPath) {
+    std::string rest = path.substr(locPath.size());
+
+    if (rest.empty() || rest[0] != '/')
+        rest = "/" + rest;
+    return rest;
+}
+
+/* Mit upload_store von ConfigFile wird die Datei in dem angegebenen Verzeichnis gespeichert */
 Response Response::buildPost(const Request& req, const LocationConfig& loc) {
-    if (!req.path.empty() && req.path.back() == '/')
+    std::string urlPath = req.path;
+    std::string baseDir = loc.root;
+
+    if (!loc.uploadStore.empty()) {
+        urlPath = stripLocationPrefix(req.path, loc.path);
+        baseDir = loc.uploadStore;
+    }
+    if (!urlPath.empty() && urlPath.back() == '/')
         return makeErrorResponse(400, loc);
 
-    ResolvedPath target = resolvePath(req.path, loc.root);
+    ResolvedPath target = resolvePath(urlPath, baseDir);
     if (target.errorCode != 0)
         return makeErrorResponse(target.errorCode, loc);
 
