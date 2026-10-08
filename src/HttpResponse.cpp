@@ -280,19 +280,17 @@ static std::string stripLocationPrefix(const std::string& path, const std::strin
     return rest;
 }
 
-/* Mit upload_store von ConfigFile wird die Datei in dem angegebenen Verzeichnis gespeichert */
+/* Mit upload_store von ConfigFile wird die Datei in dem angegebenen Verzeichnis gespeichert.
+Ohne upload_store 403: sonst koennte jeder per POST Dateien unter root ueberschreiben */
 Response Response::buildPost(const Request& req, const LocationConfig& loc) {
-    std::string urlPath = req.path;
-    std::string baseDir = loc.root;
+    if (loc.uploadStore.empty())
+        return makeErrorResponse(403, loc);
 
-    if (!loc.uploadStore.empty()) {
-        urlPath = stripLocationPrefix(req.path, loc.path);
-        baseDir = loc.uploadStore;
-    }
-    if (!urlPath.empty() && urlPath.back() == '/')
+    const std::string urlPath = stripLocationPrefix(req.path, loc.path);
+    if (urlPath.back() == '/')
         return makeErrorResponse(400, loc);
 
-    ResolvedPath target = resolvePath(urlPath, baseDir);
+    ResolvedPath target = resolvePath(urlPath, loc.uploadStore);
     if (target.errorCode != 0)
         return makeErrorResponse(target.errorCode, loc);
 
