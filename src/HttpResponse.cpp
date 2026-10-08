@@ -228,7 +228,11 @@ Response Response::build(const Request& req, const ServerConfig& server) {
 
     if (loc == nullptr) {
         const LocationConfig noLocation;
+        const LocationConfig* fallback = findBestLocation("/", server);
         const int code = (req.errorCode != 0) ? req.errorCode : 404;
+
+        if (fallback != nullptr)
+            return makeErrorResponse(code, *fallback);
         return makeErrorResponse(code, noLocation);
     }
     return build(req, *loc);
