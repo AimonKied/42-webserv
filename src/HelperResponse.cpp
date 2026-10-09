@@ -119,10 +119,10 @@ static std::string defaultErrorPage(int code, const std::string& statusText) {
 /* Sucht nach errorPages in der LocationConfig. Falls gefunden, wird die passende Seite geladen. Falls nicht, returned false und Standarderrorpage wird verwendet */
 static bool loadConfiguredErrorPage(int code, const LocationConfig& loc, std::string& body) {
     const auto entry = loc.errorPages.find(code);
-    if (entry == loc.errorPages.end() || loc.root.empty())
+    if (entry == loc.errorPages.end() || loc.errorPageRoot.empty())
         return false;
 
-    const ResolvedPath target = resolvePath(entry->second, loc.root);
+    const ResolvedPath target = resolvePath(entry->second, loc.errorPageRoot);
     std::error_code ec;
     if (target.errorCode != 0 || !std::filesystem::is_regular_file(target.path, ec))
         return false;

@@ -128,6 +128,7 @@ Config ConfigParser::parseFile(const std::string& path) const {
             if (location.root.empty()) location.root = defaultRoot;
             if (location.index.empty()) location.index = defaultIndex;
             location.errorPages.insert(server.errorPages.begin(), server.errorPages.end());
+            location.errorPageRoot = defaultRoot.empty() ? location.root : defaultRoot;
             if (location.root.empty()) {
                 throw std::runtime_error("Location " + location.path + " requires root at server or location level");
             }

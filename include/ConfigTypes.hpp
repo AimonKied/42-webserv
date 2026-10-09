@@ -16,6 +16,7 @@ struct LocationConfig {
     int redirectCode = 0;
     std::string redirectTarget;
     std::unordered_map<int, std::string> errorPages;
+    std::string errorPageRoot;
 };
 
 struct ServerConfig {
@@ -41,7 +42,8 @@ LocationConfig - ein "location {}" Block innerhalb eines Servers
  * cgiExtension   - Datei-Endung, die ans CGI weitergereicht wird (z.B. ".php")
  * redirectCode   - HTTP-Statuscode fuer Redirect (301/307), 0 = kein Redirect konfiguriert
  * redirectTarget - Ziel-URL fuer den Redirect
- * errorPages     - vom Server geerbte error_page-Eintraege (HTTP-Code -> URL-Pfad unter root)
+ * errorPages     - vom Server geerbte error_page-Eintraege (HTTP-Code -> URL-Pfad unter errorPageRoot)
+ * errorPageRoot  - Verzeichnis, unter dem die errorPages liegen: Server-root, sonst eigenes root
  *
  * ServerConfig - ein "server {}" Block, entspricht einer eigenstaendigen Webseite
  * ------------------------------------------------------------

@@ -44,12 +44,21 @@ static bool isPathInsideRoot(const std::string& fullPath, const std::string& roo
     return true;
 }
 
+static std::string stripLocationPrefix(const std::string& path, const std::string& locPath) {
+    std::string rest = path.substr(locPath.size());
+
+    if (rest.empty() || rest[0] != '/')
+        rest = "/" + rest;
+    return rest;
+}
+
 /*
 Uebersetzt einen URL-Pfad in einen Pfad auf der Platte und prueft, dass der das Basis-
-verzeichnis nicht verlaesst. Alles, was spaeter an dieser Umwandlung dazukommt (Location-
-Prefix abschneiden bei root/alias, evtl. Percent-Decoding falls es doch nicht im Parser
-landet), gehoert hier rein - und zwar VOR den isPathInsideRoot-Check. Der muss der letzte
-Schritt bleiben, sonst wird ein anderer Pfad geprueft als spaeter geoeffnet wird.
+verzeichnis nicht verlaesst. Alles, was spaeter an dieser Umwandlung dazukommt (evtl.
+Percent-Decoding falls es doch nicht im Parser landet), gehoert hier rein - und zwar VOR
+den isPathInsideRoot-Check. Der muss der letzte Schritt bleiben, sonst wird ein anderer
+Pfad geprueft als spaeter geoeffnet wird. Das Location-Prefix muss vorher schon mit
+stripLocationPrefix weg sein.
 
 baseDir statt LocationConfig als Parameter, damit buildPost spaeter uploadStore
 uebergeben kann, ohne dass diese Funktion die Methode kennen muss.
@@ -249,7 +258,7 @@ Response Response::build(const Request& req, const LocationConfig& loc) {
 }
 
 Response Response::buildGet(const Request& req, const LocationConfig& loc) {
-    ResolvedPath target = resolvePath(req.path, loc.root);
+    ResolvedPath target = resolvePath(stripLocationPrefix(req.path, loc.path), loc.root);
     if (target.errorCode != 0)
         return makeErrorResponse(target.errorCode, loc);
 
@@ -270,14 +279,6 @@ Response Response::buildGet(const Request& req, const LocationConfig& loc) {
         return makeErrorResponse(403, loc);
     }
     return serveFile(fullPath, loc);
-}
-
-static std::string stripLocationPrefix(const std::string& path, const std::string& locPath) {
-    std::string rest = path.substr(locPath.size());
-
-    if (rest.empty() || rest[0] != '/')
-        rest = "/" + rest;
-    return rest;
 }
 
 /* Mit upload_store von ConfigFile wird die Datei in dem angegebenen Verzeichnis gespeichert.
@@ -322,10 +323,11 @@ Response Response::buildPost(const Request& req, const LocationConfig& loc) {
 }
 
 Response Response::buildDelete(const Request& req, const LocationConfig& loc) {
-    if (!req.path.empty() && req.path.back() == '/')
+    const std::string urlPath = stripLocationPrefix(req.path, loc.path);
+    if (urlPath.back() == '/')
         return makeErrorResponse(400, loc);
 
-    ResolvedPath target = resolvePath(req.path, loc.root);
+    ResolvedPath target = resolvePath(urlPath, loc.root);
     if (target.errorCode != 0)
         return makeErrorResponse(target.errorCode, loc);
 
