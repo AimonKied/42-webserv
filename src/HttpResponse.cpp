@@ -1,4 +1,5 @@
 #include "HttpResponse.hpp"
+#include "Multipart.hpp"
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -282,14 +283,28 @@ Response Response::buildGet(const Request& req, const LocationConfig& loc) {
 }
 
 /* Mit upload_store von ConfigFile wird die Datei in dem angegebenen Verzeichnis gespeichert.
-Ohne upload_store 403: sonst koennte jeder per POST Dateien unter root ueberschreiben */
+Ohne upload_store 403: sonst koennte jeder per POST Dateien unter root ueberschreiben. */
 Response Response::buildPost(const Request& req, const LocationConfig& loc) {
     if (loc.uploadStore.empty())
         return makeErrorResponse(403, loc);
 
-    const std::string urlPath = stripLocationPrefix(req.path, loc.path);
-    if (urlPath.back() == '/')
+    std::string urlPath = stripLocationPrefix(req.path, loc.path);
+    const auto contentType = req.headers.find("content-type");
+    const bool isMultipart = contentType != req.headers.end()
+                             && isMultipartFormData(contentType->second);
+
+    MultipartFile upload;
+    if (isMultipart) {
+        upload = parseMultipart(contentType->second, req.body);
+        if (upload.errorCode != 0)
+            return makeErrorResponse(upload.errorCode, loc);
+        if (urlPath.back() != '/')
+            urlPath += "/";
+        urlPath += upload.filename;
+    } else if (urlPath.back() == '/') {
         return makeErrorResponse(400, loc);
+    }
+    const std::string& content = isMultipart ? upload.content : req.body;
 
     ResolvedPath target = resolvePath(urlPath, loc.uploadStore);
     if (target.errorCode != 0)
@@ -309,7 +324,7 @@ Response Response::buildPost(const Request& req, const LocationConfig& loc) {
     if (!outFile.is_open())
         return makeErrorResponse(403, loc);
 
-    outFile << req.body;
+    outFile << content;
     outFile.close();
     if (outFile.fail())
         return makeErrorResponse(500, loc);
