@@ -85,9 +85,8 @@ Normal event-loop reaping never blocks; teardown waits after sending SIGKILL.
 - The executor manages the directly launched child. Process-group management for
   scripts that spawn long-lived descendants is a later extension. A descendant
   holding stdout open cannot make the client wait beyond the CGI deadline.
-- The pre-existing one-MiB raw request-buffer cap remains distinct from configured
-  body size. It now produces a 413 response, but reconciling raw framing overhead
-  with the body limit remains outstanding.
+- Request bodies obey the configured decoded-body limit; raw buffering separately
+  allows bounded headers and chunk framing. See `http.md` for limits and tests.
 
 ## Tests covered
 

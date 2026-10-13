@@ -243,12 +243,11 @@ int Server::handleClientRead(size_t& i)
 	}
 	const ServerConfig& serverConfig = _config.at(_listeners.at(client.listenerFd));
 	HttpParser parser;
-	Request request = parser.parse(client.readBuffer, serverConfig.clientMaxBodySize);
-
-	if (client.readBuffer.size() > MAX_REQUEST_SIZE)
-	{
+	Request request;
+	if (client.readBuffer.size() > HttpParser::maxBufferedRequestSize(serverConfig.clientMaxBodySize))
 		request.errorCode = 413;
-	}
+	else
+		request = parser.parse(client.readBuffer, serverConfig.clientMaxBodySize);
 	if (!request.complete && request.errorCode == 0)
 	{
 		std::cout << "Incomplete request. Continuing..." << std::endl;

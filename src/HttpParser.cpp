@@ -8,6 +8,22 @@ namespace {
 
 const std::string::size_type MAX_REQUEST_LINE_SIZE = 8192;
 const std::string::size_type MAX_HEADERS_SIZE = 16384;
+const std::string::size_type MAX_CHUNK_LINE_SIZE = 8192;
+const std::string::size_type CHUNK_FRAMING_SLACK = 65536;
+
+std::size_t saturatedAdd(std::size_t left, std::size_t right) {
+    const std::size_t maximum = std::numeric_limits<std::size_t>::max();
+    return right > maximum - left ? maximum : left + right;
+}
+
+std::size_t maxChunkFramingSize(std::size_t maxBodySize) {
+    // A one-byte chunk needs five framing bytes: "1\r\n" and "\r\n".
+    // Larger ordinary chunks need less framing per body byte. Extra slack
+    // covers the final chunk, extensions and padded hexadecimal sizes.
+    const std::size_t maximum = std::numeric_limits<std::size_t>::max();
+    const std::size_t framing = maxBodySize > maximum / 5 ? maximum : maxBodySize * 5;
+    return saturatedAdd(framing, CHUNK_FRAMING_SLACK);
+}
 
 Request errorRequest(int errorCode) {
     Request request;
@@ -140,13 +156,26 @@ bool parseChunkedBody(const std::string &rawRequest,
                       std::string &body,
                       int &errorCode) {
     std::string::size_type current = bodyStart;
+    std::string::size_type framing = 0;
+    const std::string::size_type framingLimit = maxChunkFramingSize(maxBodySize);
 
     while (true) {
         const std::string::size_type sizeLineEnd =
             rawRequest.find("\r\n", current);
         if (sizeLineEnd == std::string::npos) {
+            if (rawRequest.size() - current > MAX_CHUNK_LINE_SIZE ||
+                rawRequest.size() - current > framingLimit - framing)
+                errorCode = 413;
             return false;
         }
+
+        const std::string::size_type lineSize = sizeLineEnd - current;
+        // Four bytes account for the size-line CRLF and the data/final CRLF.
+        if (lineSize > MAX_CHUNK_LINE_SIZE || lineSize + 4 > framingLimit - framing) {
+            errorCode = 413;
+            return false;
+        }
+        framing += lineSize + 4;
 
         std::string::size_type chunkSize = 0;
         try {
@@ -208,6 +237,12 @@ HttpParser::HttpParser() {
 }
 
 HttpParser::~HttpParser() {
+}
+
+std::size_t HttpParser::maxBufferedRequestSize(std::size_t maxBodySize) {
+    // Include request-line CRLF and the header block terminator separately.
+    const std::size_t head = MAX_REQUEST_LINE_SIZE + 2 + MAX_HEADERS_SIZE + 4;
+    return saturatedAdd(saturatedAdd(maxBodySize, maxChunkFramingSize(maxBodySize)), head);
 }
 
 Method HttpParser::parseMethod(const std::string &method) const {

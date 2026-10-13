@@ -33,7 +33,6 @@ private:
 
 	static void handleSignal(int signal);
 
-	static const size_t MAX_REQUEST_SIZE = 1024*1024;
 	std::map<int, size_t> _listeners;
 	bool isListener(int fd) const;
 	int setupSignalHandlers();
