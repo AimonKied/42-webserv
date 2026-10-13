@@ -1,5 +1,7 @@
 #pragma once
 
+#include "CgiLaunch.hpp"
+
 #include <chrono>
 #include <map>
 #include <poll.h>
@@ -8,15 +10,6 @@
 #include <vector>
 
 namespace webserv {
-
-// Launcher handover: no routing or HTTP response decisions belong here.
-struct CgiLaunch {
-	std::string executable;
-	std::string scriptPath;
-	std::string workingDirectory;
-	std::vector<std::string> environment;
-	std::string input;
-};
 
 struct CgiResult {
 	int clientFd;

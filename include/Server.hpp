@@ -45,7 +45,6 @@ private:
 	void closeAllFds();
 	int setNonBlocking(int fd);
 	void checkClientTimeouts();
-	bool dispatchCgi(Client& client, const Request& request, const ServerConfig& config);
 	void collectCgiResults();
 	void queueResponse(Client& client, const Response& response);
 
@@ -53,7 +52,7 @@ private:
 	static volatile std::sig_atomic_t _signalReceived;
 
 	bool _running;
-	Config _config;
+	const Config _config;
 	CgiExecutor _cgi;
 	std::vector<pollfd> _fds;
 	std::map<int, Client> _clients;

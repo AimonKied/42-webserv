@@ -15,7 +15,8 @@ curl 'http://127.0.0.1:8080/cgi-bin/echo.py?hello=world'
 curl --data 'hello from POST' http://127.0.0.1:8081/cgi-bin/echo.py
 ```
 
-Run the integration suite with `python3 tests/cgi_integration.py ./webserv`.
+Run the executor suite with `python3 tests/cgi_integration.py ./webserv` and the
+multi-location suite with `python3 tests/routing_integration.py ./webserv`.
 It creates temporary config/scripts, selects two free local ports, and stops its
 own server. Python at `/usr/bin/python3` is required. Linux additionally checks
 child reaping, descriptor leaks and socket inheritance through `/proc`.
@@ -25,9 +26,16 @@ child reaping, descriptor leaks and socket inheritance through `/proc`.
 1. `Server::handleClientRead` passes accumulated bytes to Joey's `HttpParser`.
    Only a complete, valid request can reach CGI dispatch. Chunked input is decoded
    by the parser before execution.
-2. `ServerCgi.cpp` is a temporary routing adapter. It calls Simon's
-   `resolveCgiTarget` and `buildCgiEnv`, validates the script's path under the
-   configured root, and prepares a `CgiLaunch` value.
+2. `handleRequest` in `RequestHandler.cpp` selects the longest matching location
+   using Simon's `findBestLocation`. Request errors, method restrictions (including
+   the Allow header) and configured redirects take precedence over CGI execution.
+   The handler returns `RequestOutcome`: a `std::variant<Response, CgiLaunch>`
+   plus the matched location pointer. It calls `resolveCgiTarget` and `buildCgiEnv`
+   for CGI and validates the script path under the matched root. A missing location
+   produces a ready error response; there is no first-location fallback.
+   `Server::handleClientRead` inspects the outcome: it queues a Response or calls
+   `_cgi.start` with the CgiLaunch. The launch contract lives in `CgiLaunch.hpp`,
+   independently of executor internals.
 3. `CgiExecutor::start` creates pipes, forks and execs the interpreter. Child stdin
    and stdout are blocking; the parent pipe endpoints are nonblocking. Server
    sockets and pipe descriptors have close-on-exec set. The child changes to the
@@ -42,6 +50,10 @@ child reaping, descriptor leaks and socket inheritance through `/proc`.
 6. Successful completion needs both child reaping and stdout EOF. The collected
    bytes go to Simon's `buildCgiResponse`, then `queueResponse` selects POLLOUT for
    the client socket. The existing partial-send path transmits the response.
+   `Client::cgiLocation` preserves the matched location through execution, output
+   parsing and error construction. It borrows from Server's const configuration,
+   which outlives clients, and is cleared when the response is queued. Configuration
+   reload would require revisiting that lifetime contract.
 
 `CgiExecutor` owns child PIDs and pipe descriptors. `Server` owns listeners and
 client sockets. `cleanupClient` cancels the corresponding job before closing the
@@ -52,14 +64,15 @@ Normal event-loop reaping never blocks; teardown waits after sending SIGKILL.
 
 ## Explicit temporary decisions
 
-- One root (`/`) location per configured server, enforced at startup. Multiple
-  server blocks/listeners are supported; listener fd maps to configuration index.
+- Multiple locations and server blocks/listeners are supported; listener fd maps
+  to configuration index. Both static and CGI decisions use the longest matching
+  location. URL-to-filesystem mapping retains the existing root + full request
+  path convention; location-prefix stripping is a separate follow-up.
 - Python only, interpreter `/usr/bin/python3`. Other configured CGI extensions
   return 501 rather than falling through to static serving.
-- `ServerCgi.cpp` bridges the unfinished response-or-CGI routing handover. It
-  checks allowed methods and redirects for CGI requests. Simon should eventually
-  supply the matched location, validated script path and launch instruction from
-  his routing layer. This does not implement general location selection.
+- `RequestHandler.cpp` is the routing handover for Simon to extend; it neither
+  launches processes nor touches client sockets. `ServerCgi.cpp` only queues
+  responses and converts completed executor results into HTTP responses.
 - Simon's existing matcher supports an extension at the end of the path, not
   `/script.py/additional/path`. PATH_INFO remains empty under that matcher.
 - Five-second wall-time limit measured with a steady clock; four-MiB buffered
@@ -83,7 +96,10 @@ and chunked POST; simultaneous input/output larger than pipe capacity; draining
 stdout after the direct child exits; malformed output; nonzero child exit; output
 cap; missing scripts; symlink escape rejection; socket inheritance; timeout with
 static service on the other listener; EOF before child exit; repeated client
-cancellation; fd/child cleanup; shutdown during an active CGI.
+cancellation; fd/child cleanup; shutdown during an active CGI. Multi-location
+coverage includes reversed config order, dedicated CGI routes, method restrictions,
+separate roots, static and CGI redirects, no-match 404s, unsupported interpreters,
+and location-specific CGI 502/504 pages.
 
 Simon's CGI-output parser remains the HTTP boundary. Its broader protocol
 hardening (for example hop-by-hop response headers, strict Status validation and

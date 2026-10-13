@@ -251,6 +251,9 @@ Response Response::build(const Request& req, const LocationConfig& loc) {
         return res;
     }
 
+    if (loc.redirectCode != 0)
+        return buildRedirect(loc.redirectCode, loc.redirectTarget);
+
     switch(req.method) {
         case Method::GET:
             return buildGet(req, loc);

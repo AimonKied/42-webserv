@@ -1,6 +1,7 @@
 #include "Server.hpp"
 #include "HttpParser.hpp"
 #include "ConfigTypes.hpp"
+#include "RequestHandler.hpp"
 
 #include <cerrno>
 
@@ -253,8 +254,7 @@ int Server::handleClientRead(size_t& i)
 
 	if (client.readBuffer.size() > MAX_REQUEST_SIZE)
 	{
-		queueResponse(client, makeErrorResponse(413, serverConfig.locations[0]));
-		return 0;
+		request.errorCode = 413;
 	}
 	if (!request.complete && request.errorCode == 0)
 	{
@@ -262,9 +262,17 @@ int Server::handleClientRead(size_t& i)
 		return 0;
 	}
 
-	if (request.errorCode == 0 && dispatchCgi(client, request, serverConfig))
-		return 0;
-	queueResponse(client, Response::build(request, serverConfig));
+	RequestOutcome outcome = handleRequest(request, serverConfig);
+	if (const Response* response = std::get_if<Response>(&outcome.action))
+		queueResponse(client, *response);
+	else if (_cgi.start(client.fd, std::get<CgiLaunch>(outcome.action)))
+	{
+		client.cgiLocation = outcome.location;
+		client.readBuffer.clear();
+		client.state = ClientState::WaitingForCgi;
+	}
+	else
+		queueResponse(client, makeErrorResponse(502, *outcome.location));
 	return 0;
 }
 

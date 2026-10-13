@@ -7,6 +7,8 @@
 #include <ctime>
 #include <iostream>
 
+struct LocationConfig;
+
 namespace webserv {
 
 enum class ClientState {
@@ -25,6 +27,8 @@ public:
 
 	int fd;
 	int listenerFd;
+	// Retained while CGI runs; points into Server's immutable configuration.
+	const LocationConfig* cgiLocation = nullptr;
 	std::string readBuffer;
 	std::string writeBuffer;
 	ClientState state;
