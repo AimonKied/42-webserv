@@ -232,20 +232,13 @@ int Server::handleClientRead(size_t& i)
 
 	if (bytesRead <= 0)
 	{
+		// Subject policy: after readiness-driven I/O, use the return value only.
+		// EOF or a failed receive ends this client; do not branch on errno.
 		if (bytesRead == 0)
-		{
 			std::cout << "Client at fd " << _fds[i].fd << " disconnected" << std::endl;
-			cleanupClient(i);
-			return -1;
-		}
-		if (bytesRead == -1)
-		{
-			if (errno == EAGAIN || errno == EWOULDBLOCK)
-				return 0; // fake news from poll client not ready
-			else
-				perror("bad recv");
-			cleanupClient(i);
-		}
+		else
+			std::cerr << "Receive failed for client " << client.fd << '\n';
+		cleanupClient(i);
 		return -1;
 	}
 	const ServerConfig& serverConfig = _config.at(_listeners.at(client.listenerFd));
@@ -279,13 +272,18 @@ int Server::handleClientRead(size_t& i)
 int Server::handleClientWrite(size_t& i)
 {
 	Client& client = _clients.at(_fds[i].fd);
+	if (client.writeBuffer.empty())
+	{
+		cleanupClient(i);
+		return 1;
+	}
 	ssize_t bytesSent = client.sendChunk();
 
-	if (bytesSent < 0)
+	if (bytesSent <= 0)
 	{
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return 0;
-		perror("bad byte send");
+		// No errno-based retry; zero progress on nonempty output also ends the
+		// client rather than repeatedly waking on POLLOUT without advancing.
+		std::cerr << "Send failed or made no progress for client " << client.fd << '\n';
 		cleanupClient(i);
 		return -1;
 	}
