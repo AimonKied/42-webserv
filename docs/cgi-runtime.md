@@ -34,7 +34,10 @@ child reaping, descriptor leaks and socket inheritance through `/proc`.
    for CGI and validates the script path under the matched root. A missing location
    produces a ready error response; there is no first-location fallback.
    `Server::handleClientRead` inspects the outcome: it queues a Response or calls
-   `_cgi.start` with the CgiLaunch. The launch contract lives in `CgiLaunch.hpp`,
+   `_cgi.start` with the CgiLaunch. Its result distinguishes Started, Unavailable
+   (capacity or temporary resource exhaustion, HTTP 503), and Failed (HTTP 502).
+   Only Started transitions the client to WaitingForCgi.
+   The launch contract lives in `CgiLaunch.hpp`,
    independently of executor internals.
 3. `CgiExecutor::start` creates pipes, forks and execs the interpreter. Child stdin
    and stdout are blocking; the parent pipe endpoints are nonblocking. Server
@@ -78,8 +81,12 @@ Normal event-loop reaping never blocks; teardown waits after sending SIGKILL.
 - Five-second wall-time limit measured with a steady clock; four-MiB buffered
   output limit. These constants live in `CgiExecutor.cpp`, pending config fields.
 - No streaming: the full CGI output is validated before an HTTP response is sent.
-- Nonzero child exit, launch/pipe failure and output overflow become 502; deadline
+- Nonzero child exit, non-resource launch/pipe failure and output overflow become 502; deadline
   expiration becomes 504. Missing scripts return 404, root escapes 403.
+- At most 16 jobs are tracked at once, including cancelled children awaiting
+  reaping. Capacity exhaustion or pipe/fork resource exhaustion returns 503 with
+  Retry-After. Completion, timeout and cancellation release slots after cleanup.
+  Client admission and accept cooldown are documented in `architecture.md`.
 - Client EOF while waiting cancels the job. TCP write-half-close support and
   persistent/pipelined requests are not implemented.
 - The executor manages the directly launched child. Process-group management for

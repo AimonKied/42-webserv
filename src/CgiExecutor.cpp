@@ -1,4 +1,5 @@
 #include "CgiExecutor.hpp"
+#include "RuntimeLimits.hpp"
 
 #include <cerrno>
 #include <csignal>
@@ -19,6 +20,13 @@ bool nonblocking(int fd) {
 	int flags = fcntl(fd, F_GETFL, 0);
 	return flags != -1 && fcntl(fd, F_SETFL, flags | O_NONBLOCK) != -1;
 }
+
+CgiStartResult launchFailure() {
+	// errno is inspected only after pipe/fork, never after read/write.
+	if (errno == EMFILE || errno == ENFILE || errno == ENOMEM || errno == EAGAIN)
+		return CgiStartResult::Unavailable;
+	return CgiStartResult::Failed;
+}
 }
 
 CgiExecutor::~CgiExecutor() { shutdown(); }
@@ -35,7 +43,10 @@ void CgiExecutor::fail(Job& job, int code) {
 	if (!job.exited) kill(job.pid, SIGKILL);
 }
 
-bool CgiExecutor::start(int clientFd, const CgiLaunch& launch) {
+CgiStartResult CgiExecutor::start(int clientFd, const CgiLaunch& launch) {
+	// Cancelled children continue occupying a slot until collectFinished reaps
+	// them, preventing repeated disconnects from bypassing the process limit.
+	if (_jobs.size() >= MAX_CGI_JOBS) return CgiStartResult::Unavailable;
 	// Allocate all C++ storage before fork. Parent endpoints alone are nonblocking;
 	// ordinary CGI scripts expect blocking stdin/stdout.
 	Job job;
@@ -50,10 +61,11 @@ bool CgiExecutor::start(int clientFd, const CgiLaunch& launch) {
 					const_cast<char*>(launch.scriptPath.c_str()), nullptr};
 	int input[2] = {-1, -1};
 	int output[2] = {-1, -1};
-	if (pipe(input) == -1) return false;
+	if (pipe(input) == -1) return launchFailure();
 	if (pipe(output) == -1) {
+		const CgiStartResult failure = launchFailure();
 		close(input[0]); close(input[1]);
-		return false;
+		return failure;
 	}
 	// Reserve descriptors above stderr; this avoids dup2/close aliasing if the
 	// server was started with one of its standard descriptors closed.
@@ -69,7 +81,7 @@ bool CgiExecutor::start(int clientFd, const CgiLaunch& launch) {
 	if (!valid || !nonblocking(input[1]) || !nonblocking(output[0])) {
 		for (int fd : {input[0], input[1], output[0], output[1]})
 			if (fd >= 0) close(fd);
-		return false;
+		return CgiStartResult::Failed;
 	}
 	pid_t pid = fork();
 	if (pid == 0) {
@@ -82,10 +94,12 @@ bool CgiExecutor::start(int clientFd, const CgiLaunch& launch) {
 		execve(launch.executable.c_str(), argv, env.data());
 		_exit(127);
 	}
+	// Save the fork outcome before close() can overwrite errno.
+	const CgiStartResult failure = pid == -1 ? launchFailure() : CgiStartResult::Failed;
 	close(input[0]); close(output[1]);
 	if (pid == -1) {
 		close(input[1]); close(output[0]);
-		return false;
+		return failure;
 	}
 	job.pid = pid;
 	job.inputFd = input[1];
@@ -99,7 +113,7 @@ bool CgiExecutor::start(int clientFd, const CgiLaunch& launch) {
 		while (waitpid(pid, nullptr, 0) == -1 && errno == EINTR) {}
 		throw;
 	}
-	return true;
+	return CgiStartResult::Started;
 }
 
 void CgiExecutor::appendPollFds(std::vector<pollfd>& fds) const {

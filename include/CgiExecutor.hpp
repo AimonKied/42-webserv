@@ -11,6 +11,12 @@
 
 namespace webserv {
 
+enum class CgiStartResult {
+	Started,
+	Unavailable, // Capacity or temporary OS resource exhaustion: HTTP 503.
+	Failed       // Other setup failure: HTTP 502.
+};
+
 struct CgiResult {
 	int clientFd;
 	int errorCode; // 0: parse output; 502: child/pipe/output failure; 504: deadline.
@@ -24,7 +30,7 @@ public:
 	CgiExecutor(const CgiExecutor&) = delete;
 	CgiExecutor& operator=(const CgiExecutor&) = delete;
 
-	bool start(int clientFd, const CgiLaunch& launch);
+	CgiStartResult start(int clientFd, const CgiLaunch& launch);
 	void appendPollFds(std::vector<pollfd>& fds) const;
 	void handleEvents(const std::vector<pollfd>& ready);
 	std::vector<CgiResult> collectFinished();

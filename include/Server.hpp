@@ -7,6 +7,7 @@
 #include "HttpResponse.hpp"
 
 #include <arpa/inet.h>
+#include <chrono>
 #include <csignal>
 #include <iostream>
 #include <map>
@@ -34,6 +35,7 @@ private:
 	static void handleSignal(int signal);
 
 	std::map<int, size_t> _listeners;
+	std::chrono::steady_clock::time_point _acceptRetryAt{};
 	bool isListener(int fd) const;
 	int setupSignalHandlers();
 	int createListeningSocket(size_t configIndex);

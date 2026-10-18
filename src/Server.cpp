@@ -2,8 +2,10 @@
 #include "HttpParser.hpp"
 #include "ConfigTypes.hpp"
 #include "RequestHandler.hpp"
+#include "RuntimeLimits.hpp"
 
 #include <cerrno>
+#include <algorithm>
 
 namespace webserv {
 
@@ -46,7 +48,20 @@ int Server::run()
 		std::vector<pollfd> readyFds = _fds;
 		const size_t socketCount = readyFds.size();
 		_cgi.appendPollFds(readyFds);
-		int ready = poll(readyFds.data(), readyFds.size(), _cgi.empty() ? 1000 : 50);
+		const auto now = std::chrono::steady_clock::now();
+		const bool coolingDown = now < _acceptRetryAt;
+		int pollTimeout = _cgi.empty() ? 1000 : 50;
+		if (coolingDown) {
+			const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(_acceptRetryAt - now).count();
+			pollTimeout = std::min(pollTimeout, static_cast<int>(remaining) + 1);
+		}
+		if (coolingDown || _clients.size() >= MAX_ACTIVE_CLIENTS) {
+			// A negative fd is ignored completely by poll. Disabling only events
+			// would still expose error/hangup readiness while accepting is paused.
+			for (size_t index = 0; index < socketCount; ++index)
+				if (isListener(readyFds[index].fd)) readyFds[index].fd = -1;
+		}
+		int ready = poll(readyFds.data(), readyFds.size(), pollTimeout);
 		if (ready == -1)
 		{
 			if (errno == EINTR)
@@ -62,6 +77,7 @@ int Server::run()
 		{
 			const pollfd& event = readyFds[eventIndex];
 			int fd = event.fd;
+			if (fd < 0) continue;
 			short revents = event.revents;
 			size_t i = 0;
 			while (i < _fds.size() && _fds[i].fd != fd) ++i;
@@ -91,7 +107,7 @@ int Server::run()
 				{
 					if (acceptClient(fd) < 0)
 					{
-						perror("acceptClient() failed");
+						closeAllFds();
 						return 1;
 					}
 				}
@@ -203,15 +219,29 @@ int Server::createListeningSocket(size_t configIndex)
 
 int Server::acceptClient(int listenerFd)
 {
+	// Recheck: another ready listener may have consumed the final slot, or
+	// started a cooldown, earlier in this same poll snapshot.
+	if (_clients.size() >= MAX_ACTIVE_CLIENTS ||
+		std::chrono::steady_clock::now() < _acceptRetryAt)
+		return 0;
 	std::cout << "New connection is pending" << std::endl;
 
 	int clientFd = accept(listenerFd, NULL, NULL);
 	if (clientFd == -1)
 	{
-		if (errno == EAGAIN || errno == EWOULDBLOCK)
-			return 1; // fake news from poll client not ready
-		std::cerr << "accept() failed\n";
-		return 1;
+		const int error = errno;
+		if (error == EAGAIN || error == EWOULDBLOCK || error == EINTR || error == ECONNABORTED)
+			return 0;
+		if (error == EBADF || error == ENOTSOCK || error == EINVAL) {
+			std::cerr << "Fatal listening socket failure in accept(): " << error << '\n';
+			return -1;
+		}
+		// EMFILE/ENFILE/ENOBUFS/ENOMEM and other potentially persistent
+		// accept failures must not spin on a still-readable listener.
+		_acceptRetryAt = std::chrono::steady_clock::now() +
+			std::chrono::milliseconds(ACCEPT_RETRY_MILLISECONDS);
+		std::cerr << "Accept paused after error " << error << '\n';
+		return 0;
 	}
 	std::cout << "Client connected: fd " << clientFd << std::endl;
 	if (setNonBlocking(clientFd) == -1)
@@ -257,14 +287,18 @@ int Server::handleClientRead(size_t& i)
 	RequestOutcome outcome = handleRequest(request, serverConfig);
 	if (const Response* response = std::get_if<Response>(&outcome.action))
 		queueResponse(client, *response);
-	else if (_cgi.start(client.fd, std::get<CgiLaunch>(outcome.action)))
-	{
-		client.cgiLocation = outcome.location;
-		client.readBuffer.clear();
-		client.state = ClientState::WaitingForCgi;
+	else {
+		const CgiStartResult result = _cgi.start(client.fd, std::get<CgiLaunch>(outcome.action));
+		if (result == CgiStartResult::Started) {
+			client.cgiLocation = outcome.location;
+			client.readBuffer.clear();
+			client.state = ClientState::WaitingForCgi;
+		} else {
+			Response error = makeErrorResponse(result == CgiStartResult::Unavailable ? 503 : 502, *outcome.location);
+			if (result == CgiStartResult::Unavailable) error.headers["Retry-After"] = "1";
+			queueResponse(client, error);
+		}
 	}
-	else
-		queueResponse(client, makeErrorResponse(502, *outcome.location));
 	return 0;
 }
 
